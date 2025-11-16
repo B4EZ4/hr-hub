@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -33,8 +33,25 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export default function ChecklistForm() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isEditing = !!id;
+
+  const { data: checklist } = useQuery({
+    queryKey: ['checklist', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await (supabase as any)
+        .from('sh_checklists')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEditing,
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -47,6 +64,21 @@ export default function ChecklistForm() {
     },
   });
 
+  useEffect(() => {
+    if (checklist) {
+      form.reset({
+        name: checklist.name,
+        description: checklist.description || '',
+        category: checklist.category,
+        is_active: checklist.is_active,
+        items: checklist.items.map((item: any) => ({
+          ...item,
+          options: item.options ? item.options.join(', ') : '',
+        })),
+      });
+    }
+  }, [checklist, form]);
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'items',
@@ -54,28 +86,37 @@ export default function ChecklistForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const { error } = await (supabase as any)
-        .from('sh_checklists')
-        .insert({
-          name: data.name,
-          description: data.description || null,
-          category: data.category,
-          is_active: data.is_active,
-          items: data.items.map(item => ({
-            ...item,
-            options: item.options ? item.options.split(',').map(o => o.trim()) : null,
-          })),
-        });
+      const payload = {
+        name: data.name,
+        description: data.description || null,
+        category: data.category,
+        is_active: data.is_active,
+        items: data.items.map(item => ({
+          ...item,
+          options: item.options ? item.options.split(',').map(o => o.trim()) : null,
+        })),
+      };
 
-      if (error) throw error;
+      if (isEditing) {
+        const { error } = await (supabase as any)
+          .from('sh_checklists')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('sh_checklists')
+          .insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['checklists'] });
-      toast.success('Checklist creado correctamente');
+      toast.success(isEditing ? 'Checklist actualizado' : 'Checklist creado correctamente');
       navigate('/seguridad-higiene/checklists');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Error al crear checklist');
+      toast.error(error.message || `Error al ${isEditing ? 'actualizar' : 'crear'} checklist`);
     },
   });
 
@@ -89,7 +130,9 @@ export default function ChecklistForm() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/seguridad-higiene/checklists')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Nuevo Checklist</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isEditing ? 'Editar Checklist' : 'Nuevo Checklist'}
+        </h1>
       </div>
 
       <Form {...form}>

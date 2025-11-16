@@ -1,16 +1,46 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Eye, ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function AreaEvaluationsList() {
   const navigate = useNavigate();
   const { canManageSH } = useRoles();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('sh_area_evaluations')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['area-evaluations'] });
+      toast.success('Evaluación eliminada correctamente');
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
 
   const { data: evaluations = [], isLoading } = useQuery({
     queryKey: ['area-evaluations'],
@@ -139,14 +169,50 @@ export default function AreaEvaluationsList() {
         emptyMessage="No hay evaluaciones registradas."
         onRowClick={(row) => navigate(`/seguridad-higiene/evaluaciones/${row.id}`)}
         actions={(row) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/seguridad-higiene/evaluaciones/${row.id}`)}
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            Ver Detalle
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/evaluaciones/${row.id}`)}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              Ver
+            </Button>
+            {canManageSH && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/seguridad-higiene/evaluaciones/${row.id}/edit`)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar evaluación?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Se eliminará permanentemente la evaluación.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+          </div>
         )}
       />
     </div>

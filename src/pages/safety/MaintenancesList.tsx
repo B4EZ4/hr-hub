@@ -4,12 +4,43 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, ArrowLeft, Wrench } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, ArrowLeft, Wrench } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function MaintenancesList() {
   const navigate = useNavigate();
   const { canManageSH } = useRoles();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('inventory_maintenance')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-maintenance'] });
+      toast.success('Mantenimiento eliminado correctamente');
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
 
   const { data: maintenances = [], isLoading } = useQuery({
     queryKey: ['inventory-maintenance'],
@@ -106,13 +137,50 @@ export default function MaintenancesList() {
         searchPlaceholder="Buscar mantenimientos..."
         emptyMessage="No hay mantenimientos registrados."
         actions={(row) => (
-          <Button
-            variant="ghost"
-            size="sm"
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            Ver Detalle
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/mantenimientos/${row.id}`)}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              Ver
+            </Button>
+            {canManageSH && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/seguridad-higiene/mantenimientos/${row.id}/edit`)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar mantenimiento?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Se eliminará permanentemente el registro.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+          </div>
         )}
       />
     </div>
