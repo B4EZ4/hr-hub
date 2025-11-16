@@ -122,17 +122,41 @@ export default function InventoryList() {
           </h1>
           <p className="text-muted-foreground">Gestión de EPP, herramientas y equipos de seguridad</p>
         </div>
-        {canManageUsers && (
+        {location.pathname.startsWith('/seguridad-higiene') ? (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate(`${basePath}/asignar`)}>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`${basePath}/asignar`)}
+              disabled={!canManageUsers}
+              title={canManageUsers ? undefined : 'Requiere rol Admin RRHH o Superadmin'}
+            >
               <Package className="mr-2 h-4 w-4" />
               Asignar Inventario
             </Button>
-            <Button onClick={() => navigate(`${basePath}/new`)} size="lg" className="font-semibold">
+            <Button
+              onClick={() => navigate(`${basePath}/new`)}
+              size="lg"
+              className="font-semibold"
+              disabled={!canManageUsers}
+              title={canManageUsers ? undefined : 'Requiere rol Admin RRHH o Superadmin'}
+            >
               <Plus className="mr-2 h-5 w-5" />
               Agregar Ítem
             </Button>
           </div>
+        ) : (
+          canManageUsers && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate(`${basePath}/asignar`)}>
+                <Package className="mr-2 h-4 w-4" />
+                Asignar Inventario
+              </Button>
+              <Button onClick={() => navigate(`${basePath}/new`)} size="lg" className="font-semibold">
+                <Plus className="mr-2 h-5 w-5" />
+                Agregar Ítem
+              </Button>
+            </div>
+          )
         )}
       </div>
 
@@ -148,6 +172,16 @@ export default function InventoryList() {
             <Button variant="ghost" size="sm" onClick={() => navigate(`${basePath}/${row.id}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               Editar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`${basePath}/${row.id}/asignar`)}
+              disabled={!canManageUsers}
+              title={canManageUsers ? undefined : 'Requiere rol Admin RRHH o Superadmin'}
+            >
+              <Package className="mr-2 h-4 w-4" />
+              Asignar
             </Button>
             {canManageUsers && (
               <AlertDialog>
