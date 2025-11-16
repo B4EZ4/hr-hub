@@ -78,8 +78,8 @@ export default function DocumentsList() {
           <p className="text-muted-foreground">Repositorio de documentos corporativos</p>
         </div>
         {canManageUsers && (
-          <Button onClick={() => navigate('/documentos/new')}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button onClick={() => navigate('/documentos/new')} size="lg" className="font-semibold">
+            <Plus className="mr-2 h-5 w-5" />
             Cargar Documento
           </Button>
         )}

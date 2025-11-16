@@ -86,8 +86,10 @@ export default function InventoryList() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
-          <p className="text-muted-foreground">Gestión de EPP, herramientas y equipos</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {location.pathname.startsWith('/seguridad-higiene') ? 'Seguridad e Higiene - Inventario' : 'Inventario'}
+          </h1>
+          <p className="text-muted-foreground">Gestión de EPP, herramientas y equipos de seguridad</p>
         </div>
         {canManageUsers && (
           <div className="flex gap-2">
@@ -95,9 +97,9 @@ export default function InventoryList() {
               <Package className="mr-2 h-4 w-4" />
               Asignar Inventario
             </Button>
-            <Button onClick={() => navigate(`${basePath}/new`)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Artículo
+            <Button onClick={() => navigate(`${basePath}/new`)} size="lg" className="font-semibold">
+              <Plus className="mr-2 h-5 w-5" />
+              Agregar Ítem
             </Button>
           </div>
         )}

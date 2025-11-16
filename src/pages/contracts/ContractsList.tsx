@@ -105,8 +105,8 @@ export default function ContractsList() {
           <p className="text-muted-foreground">Gestión de contratos laborales</p>
         </div>
         {canManageContracts && (
-          <Button onClick={() => navigate('/contratos/new')}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button onClick={() => navigate('/contratos/new')} size="lg" className="font-semibold">
+            <Plus className="mr-2 h-5 w-5" />
             Nuevo Contrato
           </Button>
         )}
