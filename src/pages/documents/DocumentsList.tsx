@@ -3,9 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Plus, FileText, Download, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
+import { useRoles } from '@/hooks/useRoles';
 
 export default function DocumentsList() {
   const { canManageUsers } = useRoles();
@@ -103,42 +104,43 @@ export default function DocumentsList() {
       )}
 
       {documents.length > 0 && (
-        data={documents}
-        columns={columns}
-        searchable
-        searchPlaceholder="Buscar documentos..."
-        emptyMessage="No hay documentos disponibles."
-        onRowClick={(row) => navigate(`/documentos/${row.id}`)}
-        actions={(row) => (
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/documentos/${row.id}`);
-              }}
-            >
-              <Eye className="mr-2 h-4 w-4" />
-              Ver
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                const { data } = (supabase as any).storage
-                  .from('documents')
-                  .getPublicUrl((row as any).file_path);
-                window.open(data.publicUrl, '_blank');
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Descargar
-            </Button>
-          </div>
-        )}
-        )}
+        <DataTable
+          data={documents}
+          columns={columns}
+          searchable
+          searchPlaceholder="Buscar documentos..."
+          emptyMessage="No hay documentos disponibles."
+          onRowClick={(row) => navigate(`/documentos/${row.id}`)}
+          actions={(row) => (
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/documentos/${row.id}`);
+                }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Ver
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const { data } = (supabase as any).storage
+                    .from('documents')
+                    .getPublicUrl((row as any).file_path);
+                  window.open(data.publicUrl, '_blank');
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Descargar
+              </Button>
+            </div>
+          )}
+        />
       )}
     </div>
   );
