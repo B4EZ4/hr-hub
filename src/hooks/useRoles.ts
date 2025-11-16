@@ -12,10 +12,10 @@ export const useRoles = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_roles')
         .select('role')
-        .eq('user_id', user.id) as any;
+        .eq('user_id', user.id);
 
       if (error) throw error;
       return (data || []).map((r: any) => r.role as AppRole);

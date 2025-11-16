@@ -16,11 +16,11 @@ export default function Dashboard() {
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single() as any;
+        .single();
       return data;
     },
     enabled: !!user,
@@ -29,10 +29,10 @@ export default function Dashboard() {
   const { data: contractsCount } = useQuery({
     queryKey: ['contracts-count'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from('contracts')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'por_vencer') as any;
+        .eq('status', 'por_vencer');
       return count || 0;
     },
   });
@@ -40,10 +40,10 @@ export default function Dashboard() {
   const { data: vacationRequestsCount } = useQuery({
     queryKey: ['vacation-requests-count'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from('vacation_requests')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'pendiente') as any;
+        .eq('status', 'pendiente');
       return count || 0;
     },
   });
@@ -51,10 +51,10 @@ export default function Dashboard() {
   const { data: incidentsCount } = useQuery({
     queryKey: ['incidents-count'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from('incidents')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['abierto', 'en_progreso']) as any;
+        .in('status', ['abierto', 'en_progreso']);
       return count || 0;
     },
   });
@@ -62,10 +62,10 @@ export default function Dashboard() {
   const { data: inspectionsCount } = useQuery({
     queryKey: ['inspections-count'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from('sh_inspections')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'programada') as any;
+        .eq('status', 'programada');
       return count || 0;
     },
     enabled: canManageSH,
