@@ -39,6 +39,9 @@ import AreaEvaluationForm from "./pages/safety/AreaEvaluationForm";
 import MaintenancesList from "./pages/safety/MaintenancesList";
 import MaintenanceForm from "./pages/safety/MaintenanceForm";
 import AlertsList from "./pages/safety/AlertsList";
+import InspectionExecution from "./pages/safety/InspectionExecution";
+import InventoryHistory from "./pages/safety/InventoryHistory";
+import InventoryAdjustment from "./pages/safety/InventoryAdjustment";
 import DocumentDetail from "./pages/documents/DocumentDetail";
 import RolesManager from "./pages/settings/RolesManager";
 import Settings from "./pages/settings/Settings";
@@ -114,6 +117,7 @@ const App = () => (
             <Route path="/seguridad-higiene/inspecciones/new" element={<ProtectedRoute><InspectionForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones/:id" element={<ProtectedRoute><InspectionDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones/:id/edit" element={<ProtectedRoute><InspectionForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inspecciones/:id/ejecutar" element={<ProtectedRoute><InspectionExecution /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores" element={<ProtectedRoute><SectorsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/new" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/:id/edit" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
@@ -125,6 +129,9 @@ const App = () => (
             <Route path="/seguridad-higiene/mantenimientos" element={<ProtectedRoute><MaintenancesList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos/new" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/alertas" element={<ProtectedRoute><AlertsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/:id/historial" element={<ProtectedRoute><InventoryHistory /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/:id/ajustar" element={<ProtectedRoute><InventoryAdjustment /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/:id/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id" element={<ProtectedRoute><InventoryDetail /></ProtectedRoute>} />

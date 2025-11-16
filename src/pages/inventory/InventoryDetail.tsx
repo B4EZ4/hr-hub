@@ -166,6 +166,19 @@ export default function InventoryDetail() {
         </div>
         {canManageUsers && (
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/inventario/${id}/historial`)}>
+              Ver Historial
+            </Button>
+            <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/inventario/${id}/ajustar`)}>
+              Ajustar Stock
+            </Button>
+            <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/inventario/${id}/asignar`)}>
+              <Package className="mr-2 h-4 w-4" />
+              Asignar
+            </Button>
+            <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/mantenimientos/new?item=${id}`)}>
+              Registrar Mantenimiento
+            </Button>
             <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/inventario/${id}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               Editar
