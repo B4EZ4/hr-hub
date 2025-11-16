@@ -15,7 +15,7 @@ import {
 
 export default function ContractsList() {
   const navigate = useNavigate();
-  const { canManageContracts } = useRoles();
+  const { canManageContracts, roles } = useRoles();
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ['contracts'],
@@ -104,12 +104,16 @@ export default function ContractsList() {
           <h1 className="text-3xl font-bold tracking-tight">Contratos</h1>
           <p className="text-muted-foreground">Gestión de contratos laborales</p>
         </div>
-        {canManageContracts && (
-          <Button onClick={() => navigate('/contratos/new')} size="lg" className="font-semibold">
-            <Plus className="mr-2 h-5 w-5" />
-            Nuevo Contrato
-          </Button>
-        )}
+        {(() => {
+          const showNew = canManageContracts || (roles?.length ?? 0) === 0;
+          if (!showNew) return null;
+          return (
+            <Button onClick={() => navigate('/contratos/new')} size="lg" className="font-semibold" disabled={!canManageContracts}>
+              <Plus className="mr-2 h-5 w-5" />
+              Nuevo Contrato
+            </Button>
+          );
+        })()}
       </div>
 
       <DataTable
