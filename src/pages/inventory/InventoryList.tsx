@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useRoles } from '@/hooks/useRoles';
 
 export default function InventoryList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { canManageUsers } = useRoles();
 
   const { data: items = [], isLoading } = useQuery({
@@ -77,7 +78,7 @@ export default function InventoryList() {
       </div>
     );
   }
-
+  const basePath = location.pathname.startsWith('/seguridad-higiene') ? '/seguridad-higiene/inventario' : '/inventario';
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -87,11 +88,11 @@ export default function InventoryList() {
         </div>
         {canManageUsers && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/inventario/asignar')}>
+            <Button variant="outline" onClick={() => navigate(`${basePath}/asignar`)}>
               <Package className="mr-2 h-4 w-4" />
               Asignar Inventario
             </Button>
-            <Button onClick={() => navigate('/inventario/new')}>
+            <Button onClick={() => navigate(`${basePath}/new`)}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Artículo
             </Button>
@@ -105,10 +106,10 @@ export default function InventoryList() {
         searchable
         searchPlaceholder="Buscar artículos..."
         emptyMessage="No hay artículos en inventario."
-        onRowClick={(row) => navigate(`/inventario/${row.id}/edit`)}
+        onRowClick={(row) => navigate(`${basePath}/${row.id}/edit`)}
         actions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/inventario/${row.id}/edit`)}>
-            <Edit className="mr-2 h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={() => navigate(`${basePath}/${row.id}/edit`)}>
+            <Eye className="mr-2 h-4 w-4" />
             Editar
           </Button>
         )}

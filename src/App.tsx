@@ -25,6 +25,7 @@ import InventoryForm from "./pages/inventory/InventoryForm";
 import InventoryAssignment from "./pages/inventory/InventoryAssignment";
 import DocumentsList from "./pages/documents/DocumentsList";
 import DocumentForm from "./pages/documents/DocumentForm";
+import SafetyHome from "./pages/safety/SafetyHome";
 import InspectionsList from "./pages/safety/InspectionsList";
 import InspectionForm from "./pages/safety/InspectionForm";
 import InspectionDetail from "./pages/safety/InspectionDetail";
@@ -96,7 +97,7 @@ const App = () => (
             <Route path="/documentos/new" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
             
             {/* Seguridad e Higiene */}
-            <Route path="/seguridad-higiene" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene" element={<ProtectedRoute><SafetyHome /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones/new" element={<ProtectedRoute><InspectionForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones/:id" element={<ProtectedRoute><InspectionDetail /></ProtectedRoute>} />
@@ -104,6 +105,10 @@ const App = () => (
             <Route path="/seguridad-higiene/sectores" element={<ProtectedRoute><SectorsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/new" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/:id/edit" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
             
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

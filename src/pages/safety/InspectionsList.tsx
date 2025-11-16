@@ -21,7 +21,7 @@ export default function InspectionsList() {
           sector:sector_id (name),
           inspector:inspector_id (full_name)
         `)
-        .order('inspection_date', { ascending: false });
+        .order('scheduled_date', { ascending: false });
 
       if (error) throw error;
       return data || [];
@@ -48,7 +48,7 @@ export default function InspectionsList() {
     },
     {
       header: 'Fecha',
-      accessorKey: 'inspection_date',
+      accessorKey: 'scheduled_date',
       cell: (value: string) => new Date(value).toLocaleDateString('es-ES'),
     },
     {
