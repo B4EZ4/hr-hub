@@ -96,15 +96,35 @@ export default function InspectionsList() {
         searchPlaceholder="Buscar inspecciones..."
         emptyMessage="No hay inspecciones programadas."
         onRowClick={(row) => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
-        actions={(row) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            Ver detalle
-          </Button>
+        actions={(row: any) => (
+          <div className="flex gap-2">
+            {row.status === 'programada' && canManageSH && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
+              >
+                Iniciar Inspección
+              </Button>
+            )}
+            {row.status === 'en_progreso' && canManageSH && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
+              >
+                Continuar
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              Ver detalle
+            </Button>
+          </div>
         )}
       />
     </div>
