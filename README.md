@@ -293,15 +293,3 @@ WHERE user_id = (SELECT id FROM auth.users WHERE email = 'admin@sistema-rrhh.com
 
 Para soporte interno, utiliza el canal de comunicación del proyecto y adjunta logs y pasos para reproducir cualquier incidencia.
 
----
-
-## Si deseas que genere:
-
-* Un `README.md` listo para commitear (este documento ya está preparado)
-* Un PDF con esta documentación
-* Un diagrama de rutas (visual)
-* Un mapa de roles y permisos en formato tabla CSV
-
-Indica cuál prefieres y lo genero.
-
-
