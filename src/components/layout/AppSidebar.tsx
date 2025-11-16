@@ -36,8 +36,7 @@ export const AppSidebar = () => {
     { title: 'Contratos', url: '/contratos', icon: FileText, show: true },
     { title: 'Vacaciones', url: '/vacaciones', icon: Calendar, show: true },
     { title: 'Incidencias', url: '/incidencias', icon: AlertTriangle, show: true },
-    { title: 'Seguridad e Higiene', url: '/seguridad-higiene', icon: Shield, show: canManageSH },
-    { title: 'Inventario', url: '/seguridad-higiene/inventario', icon: Package, show: true },
+    { title: 'Seguridad e Higiene', url: '/seguridad-higiene', icon: Shield, show: true },
     { title: 'Documentos', url: '/documentos', icon: FolderOpen, show: true },
   ];
 

@@ -102,7 +102,7 @@ export default function InventoryForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
       toast.success(isEditing ? 'Artículo actualizado' : 'Artículo creado');
-      navigate('/inventario');
+      navigate('/seguridad-higiene/inventario');
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al guardar el artículo');
@@ -116,12 +116,15 @@ export default function InventoryForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/seguridad-higiene/inventario')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {isEditing ? 'Editar Artículo' : 'Nuevo Artículo'}
-        </h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isEditing ? 'Editar Artículo' : 'Nuevo Artículo'}
+          </h1>
+          <p className="text-muted-foreground">Inventario de Seguridad e Higiene</p>
+        </div>
       </div>
 
       <Card>

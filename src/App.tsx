@@ -23,6 +23,7 @@ import IncidentDetail from "./pages/incidents/IncidentDetail";
 import InventoryList from "./pages/inventory/InventoryList";
 import InventoryForm from "./pages/inventory/InventoryForm";
 import InventoryAssignment from "./pages/inventory/InventoryAssignment";
+import InventoryDetail from "./pages/inventory/InventoryDetail";
 import DocumentsList from "./pages/documents/DocumentsList";
 import DocumentForm from "./pages/documents/DocumentForm";
 import SafetyHome from "./pages/safety/SafetyHome";
@@ -116,6 +117,7 @@ const App = () => (
             <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inventario/:id" element={<ProtectedRoute><InventoryDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
             
