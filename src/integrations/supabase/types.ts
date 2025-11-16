@@ -399,6 +399,39 @@ export type Database = {
           },
         ]
       }
+      sh_checklists: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          items: Json
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          items?: Json
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          items?: Json
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       sh_inspections: {
         Row: {
           completed_date: string | null
