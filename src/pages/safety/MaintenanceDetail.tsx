@@ -207,10 +207,39 @@ export default function MaintenanceDetail() {
       {maintenance.observations && (
         <Card>
           <CardHeader>
-            <CardTitle>Observaciones</CardTitle>
+            <CardTitle>
+              {maintenance.status === 'en_proceso' ? 'Progreso del Mantenimiento' : 'Observaciones'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="whitespace-pre-wrap">{maintenance.observations}</p>
+            <div className="space-y-4">
+              <p className="whitespace-pre-wrap">{maintenance.observations}</p>
+              
+              {maintenance.status === 'en_proceso' && (
+                <div className="mt-4 p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <span className="font-medium text-sm">Mantenimiento en Progreso</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Este mantenimiento está actualmente en ejecución. Las tareas marcadas con ✓ han sido completadas, 
+                    mientras que las marcadas con ⏳ están pendientes o en proceso.
+                  </p>
+                </div>
+              )}
+
+              {maintenance.status === 'completado' && (
+                <div className="mt-4 p-4 bg-success/10 border border-success/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-2 w-2 bg-success rounded-full"></div>
+                    <span className="font-medium text-sm text-success">Mantenimiento Completado</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Este mantenimiento fue completado exitosamente. Todos los trabajos especificados han sido realizados y verificados.
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
