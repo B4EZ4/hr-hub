@@ -204,7 +204,6 @@ export default function Dashboard() {
       </Card>
 
       {/* Widgets Grid - Contratos por vencer */}
-      {canManageContracts && expiringContracts.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -232,10 +231,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Solicitudes de Vacaciones Pendientes */}
-      {canApproveVacations && pendingVacations.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -263,10 +260,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Incidencias Críticas */}
-      {openIncidents.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -294,10 +289,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Stock Crítico */}
-      {canManageSH && criticalStock.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -325,10 +318,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Inspecciones Programadas */}
-      {canManageSH && upcomingInspections.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -356,10 +347,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Documentos Recientes */}
-      {recentDocuments.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -389,7 +378,6 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
     </div>
   );
 }

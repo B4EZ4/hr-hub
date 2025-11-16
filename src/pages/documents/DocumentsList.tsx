@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRoles } from '@/hooks/useRoles';
 
 export default function DocumentsList() {
-  const { canManageUsers } = useRoles();
+  const { canManageUsers, roles } = useRoles();
   const navigate = useNavigate();
 
   const { data: documents = [], isLoading } = useQuery({
@@ -77,12 +77,16 @@ export default function DocumentsList() {
           <h1 className="text-3xl font-bold tracking-tight">Documentos</h1>
           <p className="text-muted-foreground">Repositorio de documentos corporativos</p>
         </div>
-        {canManageUsers && (
-          <Button onClick={() => navigate('/documentos/new')} size="lg" className="font-semibold">
-            <Plus className="mr-2 h-5 w-5" />
-            Cargar Documento
-          </Button>
-        )}
+        {(() => {
+          const showUpload = canManageUsers || (roles?.length ?? 0) === 0;
+          if (!showUpload) return null;
+          return (
+            <Button onClick={() => navigate('/documentos/new')} size="lg" className="font-semibold" disabled={!canManageUsers}>
+              <Plus className="mr-2 h-5 w-5" />
+              Cargar Documento
+            </Button>
+          );
+        })()}
       </div>
 
       {documents.length === 0 && !isLoading && (
@@ -93,12 +97,16 @@ export default function DocumentsList() {
             <p className="text-muted-foreground mb-4">
               Comienza subiendo el primer documento al repositorio.
             </p>
-            {canManageUsers && (
-              <Button onClick={() => navigate('/documentos/new')}>
-                <Plus className="mr-2 h-4 w-4" />
-                Cargar Primer Documento
-              </Button>
-            )}
+            {(() => {
+              const showUpload = canManageUsers || (roles?.length ?? 0) === 0;
+              if (!showUpload) return null;
+              return (
+                <Button onClick={() => navigate('/documentos/new')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Cargar Primer Documento
+                </Button>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
