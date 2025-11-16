@@ -98,8 +98,9 @@ export default function InventoryAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-items-available'] });
       toast.success('Asignación creada correctamente');
-      navigate('/inventario');
+      navigate('/seguridad-higiene/inventario');
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al crear la asignación');
@@ -113,10 +114,13 @@ export default function InventoryAssignment() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/seguridad-higiene/inventario')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Asignar Inventario</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Asignar EPP/Equipo</h1>
+          <p className="text-muted-foreground">Asignar artículos de inventario a empleados</p>
+        </div>
       </div>
 
       <Card>

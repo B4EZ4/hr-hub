@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/shared/FileUploader';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   sector_id: z.string().min(1, 'Seleccione un sector'),
@@ -32,6 +33,7 @@ export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isEditing = !!id;
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
   const { data: inspection } = useQuery({
     queryKey: ['sh-inspection', id],
@@ -41,7 +43,7 @@ export default function InspectionForm() {
         .from('sh_inspections')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -66,6 +68,7 @@ export default function InspectionForm() {
       const { data, error } = await (supabase as any)
         .from('profiles')
         .select('user_id, full_name')
+        .eq('status', 'activo')
         .order('full_name');
       if (error) throw error;
       return data || [];
@@ -77,7 +80,7 @@ export default function InspectionForm() {
     defaultValues: {
       sector_id: '',
       inspector_id: '',
-      scheduled_date: '',
+      scheduled_date: new Date().toISOString().split('T')[0],
       status: 'programada',
       findings: '',
       recommendations: '',
@@ -96,6 +99,7 @@ export default function InspectionForm() {
         recommendations: inspection.recommendations || '',
         completed_date: inspection.completed_date || '',
       });
+      setUploadedFiles(inspection.file_paths || []);
     }
   }, [inspection, form]);
 
@@ -106,6 +110,7 @@ export default function InspectionForm() {
         findings: data.findings || null,
         recommendations: data.recommendations || null,
         completed_date: data.completed_date || null,
+        file_paths: uploadedFiles.length > 0 ? uploadedFiles : null,
       };
 
       if (isEditing) {
@@ -123,7 +128,7 @@ export default function InspectionForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sh-inspections'] });
-      toast.success(isEditing ? 'Inspección actualizada' : 'Inspección creada');
+      toast.success(isEditing ? 'Inspección actualizada' : 'Inspección programada');
       navigate('/seguridad-higiene/inspecciones');
     },
     onError: (error: any) => {
@@ -135,15 +140,27 @@ export default function InspectionForm() {
     mutation.mutate(data);
   };
 
+  const handleFileUpload = (path: string) => {
+    setUploadedFiles([...uploadedFiles, path]);
+    toast.success('Evidencia subida correctamente');
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/seguridad-higiene/inspecciones')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {isEditing ? 'Editar Inspección' : 'Nueva Inspección'}
-        </h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isEditing ? 'Editar Inspección' : 'Nueva Inspección'}
+          </h1>
+          <p className="text-muted-foreground">Programar y gestionar inspecciones de seguridad</p>
+        </div>
       </div>
 
       <Card>
@@ -153,17 +170,17 @@ export default function InspectionForm() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="sector_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sector</FormLabel>
+                      <FormLabel>Sector *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un sector" />
+                            <SelectValue placeholder="Seleccionar sector" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -184,11 +201,11 @@ export default function InspectionForm() {
                   name="inspector_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Inspector</FormLabel>
+                      <FormLabel>Inspector *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un inspector" />
+                            <SelectValue placeholder="Seleccionar inspector" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -209,7 +226,7 @@ export default function InspectionForm() {
                   name="scheduled_date"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fecha Programada</FormLabel>
+                      <FormLabel>Fecha Programada *</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -223,7 +240,7 @@ export default function InspectionForm() {
                   name="status"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Estado</FormLabel>
+                      <FormLabel>Estado *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -242,19 +259,21 @@ export default function InspectionForm() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="completed_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha de Finalización</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {form.watch('status') === 'completada' && (
+                  <FormField
+                    control={form.control}
+                    name="completed_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha de Finalización</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
 
               <FormField
@@ -264,7 +283,12 @@ export default function InspectionForm() {
                   <FormItem>
                     <FormLabel>Hallazgos</FormLabel>
                     <FormControl>
-                      <Textarea rows={4} placeholder="Describa los hallazgos..." {...field} />
+                      <Textarea
+                        placeholder="Describa los hallazgos de la inspección"
+                        className="resize-none"
+                        rows={4}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -278,29 +302,56 @@ export default function InspectionForm() {
                   <FormItem>
                     <FormLabel>Recomendaciones</FormLabel>
                     <FormControl>
-                      <Textarea rows={4} placeholder="Describa las recomendaciones..." {...field} />
+                      <Textarea
+                        placeholder="Escriba las recomendaciones"
+                        className="resize-none"
+                        rows={4}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {isEditing && (
-                <div>
-                  <FormLabel>Archivos Adjuntos</FormLabel>
-                  <FileUploader
-                    bucket="inspections"
-                    path={`${id}`}
-                    onUploadComplete={(path) => {
-                      toast.success('Archivo subido correctamente');
-                    }}
-                  />
-                </div>
-              )}
+              <div className="space-y-4">
+                <FormLabel>Evidencias (Fotos/Documentos)</FormLabel>
+                <FileUploader
+                  bucket="inspections"
+                  path="evidencias"
+                  accept="image/*,.pdf"
+                  maxSize={10 * 1024 * 1024}
+                  onUploadComplete={handleFileUpload}
+                  onUploadError={(error) => toast.error(error)}
+                />
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Archivos subidos: {uploadedFiles.length}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {uploadedFiles.map((file, index) => (
+                        <Badge key={index} variant="secondary" className="gap-2">
+                          {file.split('/').pop()?.substring(0, 20)}...
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-4">
                 <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending ? 'Guardando...' : 'Guardar'}
+                  {mutation.isPending ? 'Guardando...' : isEditing ? 'Actualizar' : 'Programar Inspección'}
                 </Button>
                 <Button
                   type="button"
