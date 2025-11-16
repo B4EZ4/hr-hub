@@ -9,6 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
 import { useAuth } from "./contexts/AuthContext";
+import UsersList from "./pages/users/UsersList";
+import UserForm from "./pages/users/UserForm";
+import UserDetail from "./pages/users/UserDetail";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +47,38 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios"
+              element={
+                <ProtectedRoute>
+                  <UsersList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios/new"
+              element={
+                <ProtectedRoute>
+                  <UserForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios/:id"
+              element={
+                <ProtectedRoute>
+                  <UserDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <UserForm />
                 </ProtectedRoute>
               }
             />
