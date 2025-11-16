@@ -1,26 +1,30 @@
-# Welcome to your Lovable project
 
-## Project info
 
-**URL**: https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76
+# Bienvenido a tu proyecto **RHH HUB ADMON**
 
-## How can I edit this code?
+## Información del proyecto
 
-There are several ways of editing your application.
+**URL**: [https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76](https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76)
 
-**Use Lovable**
+## ¿Cómo puedo editar este código?
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76) and start prompting.
+Hay varias maneras de editar tu aplicación.
 
-Changes made via Lovable will be committed automatically to this repo.
+**Usar Lovable**
 
-**Use your preferred IDE**
+Simplemente visita el [Proyecto en Lovable](https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76) y empieza a dar instrucciones por medio de prompts.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Los cambios hechos desde Lovable serán automáticamente enviados (committed) a este repositorio.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+**Usar tu IDE preferido**
 
-Follow these steps:
+Si quieres trabajar localmente usando tu propio IDE, puedes clonar este repositorio y subir los cambios (push).
+Los cambios enviados también se verán reflejados en Lovable.
+
+El único requisito es tener Node.js y npm instalados — puedes instalarlos con nvm:
+[install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Sigue estos pasos:
 
 ```sh
 # Step 1: Clone the repository using the project's Git URL.
@@ -36,38 +40,40 @@ npm i
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+**Editar un archivo directamente en GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+* Navega al/los archivo(s) deseados.
+* Haz clic en el botón "Edit" (icono de lápiz) en la parte superior derecha de la vista del archivo.
+* Realiza tus cambios y después haz commit.
 
-**Use GitHub Codespaces**
+**Usar GitHub Codespaces**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+* Navega a la página principal de tu repositorio.
+* Haz clic en el botón “Code” (botón verde) en la parte superior derecha.
+* Selecciona la pestaña “Codespaces”.
+* Haz clic en “New codespace” para iniciar un nuevo entorno de Codespace.
+* Edita los archivos directamente dentro del Codespace y realiza commit y push cuando termines.
 
-## What technologies are used for this project?
+## ¿Qué tecnologías usa este proyecto?
 
-This project is built with:
+Este proyecto está construido con:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+* Vite
+* TypeScript
+* React
+* shadcn-ui
+* Tailwind CSS
 
-## How can I deploy this project?
+## ¿Cómo puedo desplegar (deploy) este proyecto?
 
-Simply open [Lovable](https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76) and click on Share -> Publish.
+Simplemente abre [Lovable](https://lovable.dev/projects/ef2a69e5-c2b3-4646-b8e6-9da8b71a1c76) y haz clic en Share → Publish.
 
-## Can I connect a custom domain to my Lovable project?
+## ¿Puedo conectar un dominio personalizado a mi proyecto de Lovable?
 
-Yes, you can!
+¡Sí puedes!
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Para conectar un dominio, navega a Project → Settings → Domains y haz clic en **Connect Domain**.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Puedes leer más aquí:
+[Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
