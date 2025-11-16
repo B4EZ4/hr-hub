@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -26,9 +27,26 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export default function MaintenanceForm() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const isEditing = !!id;
+
+  const { data: maintenance } = useQuery({
+    queryKey: ['maintenance', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await (supabase as any)
+        .from('inventory_maintenance')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEditing,
+  });
 
   const { data: items = [] } = useQuery({
     queryKey: ['inventory-items'],
@@ -49,25 +67,48 @@ export default function MaintenanceForm() {
     },
   });
 
+  useEffect(() => {
+    if (maintenance) {
+      form.reset({
+        item_id: maintenance.item_id,
+        maintenance_type: maintenance.maintenance_type,
+        scheduled_date: maintenance.scheduled_date || '',
+        description: maintenance.description || '',
+        observations: maintenance.observations || '',
+        cost: maintenance.cost?.toString() || '',
+      });
+    }
+  }, [maintenance, form]);
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const { error } = await (supabase as any)
-        .from('inventory_maintenance')
-        .insert({
-          ...data,
-          cost: data.cost ? parseFloat(data.cost) : null,
-          performed_by: user?.id,
-          status: 'pendiente',
-        });
-      if (error) throw error;
+      const payload = {
+        ...data,
+        cost: data.cost ? parseFloat(data.cost) : null,
+        performed_by: user?.id,
+        status: 'pendiente',
+      };
+
+      if (isEditing) {
+        const { error } = await (supabase as any)
+          .from('inventory_maintenance')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('inventory_maintenance')
+          .insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-maintenance'] });
-      toast.success('Mantenimiento registrado correctamente');
+      toast.success(isEditing ? 'Mantenimiento actualizado' : 'Mantenimiento registrado correctamente');
       navigate('/seguridad-higiene/mantenimientos');
     },
     onError: (error: Error) => {
-      toast.error('Error al registrar mantenimiento: ' + error.message);
+      toast.error(`Error al ${isEditing ? 'actualizar' : 'registrar'} mantenimiento: ` + error.message);
     },
   });
 
@@ -92,9 +133,11 @@ export default function MaintenanceForm() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Wrench className="h-8 w-8 text-primary" />
-            Registrar Mantenimiento
+            {isEditing ? 'Editar Mantenimiento' : 'Registrar Mantenimiento'}
           </h1>
-          <p className="text-muted-foreground">Programa o registra un mantenimiento de equipo</p>
+          <p className="text-muted-foreground">
+            {isEditing ? 'Actualiza los datos del mantenimiento' : 'Programa o registra un mantenimiento de equipo'}
+          </p>
         </div>
       </div>
 

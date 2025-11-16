@@ -124,10 +124,13 @@ const App = () => (
             <Route path="/seguridad-higiene/checklists" element={<ProtectedRoute><ChecklistsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/new" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/checklists/:id/edit" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/evaluaciones" element={<ProtectedRoute><AreaEvaluationsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/evaluaciones/new" element={<ProtectedRoute><AreaEvaluationForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/evaluaciones/:id/edit" element={<ProtectedRoute><AreaEvaluationForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos" element={<ProtectedRoute><MaintenancesList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos/new" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/mantenimientos/:id/edit" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/alertas" element={<ProtectedRoute><AlertsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/historial" element={<ProtectedRoute><InventoryHistory /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/ajustar" element={<ProtectedRoute><InventoryAdjustment /></ProtectedRoute>} />

@@ -4,14 +4,45 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, Package, Edit } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, Package } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
 import { StockCriticalPanel } from '@/components/inventory/StockCriticalPanel';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function InventoryList() {
   const navigate = useNavigate();
   const location = useLocation();
   const { canManageUsers } = useRoles();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('inventory_items')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+      toast.success('Ítem eliminado correctamente');
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['inventory-items'],
@@ -113,10 +144,36 @@ export default function InventoryList() {
         emptyMessage="No hay artículos en inventario."
         onRowClick={(row) => navigate(`${basePath}/${row.id}/edit`)}
         actions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => navigate(`${basePath}/${row.id}/edit`)}>
-            <Eye className="mr-2 h-4 w-4" />
-            Editar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate(`${basePath}/${row.id}/edit`)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Editar
+            </Button>
+            {canManageUsers && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar ítem?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminará permanentemente el ítem del inventario.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         )}
       />
     </div>

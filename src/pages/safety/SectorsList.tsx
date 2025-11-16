@@ -4,12 +4,43 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, ArrowLeft } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function SectorsList() {
   const navigate = useNavigate();
   const { canManageSH } = useRoles();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('sh_sectors')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sh-sectors'] });
+      toast.success('Sector eliminado correctamente');
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
 
   const { data: sectors = [], isLoading } = useQuery({
     queryKey: ['sh-sectors'],
@@ -94,14 +125,40 @@ export default function SectorsList() {
         emptyMessage="No hay sectores registrados."
         onRowClick={(row) => navigate(`/seguridad-higiene/sectores/${row.id}/edit`)}
         actions={(row) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/seguridad-higiene/sectores/${row.id}/edit`)}
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            Ver
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/sectores/${row.id}/edit`)}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Editar
+            </Button>
+            {canManageSH && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar sector?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminará permanentemente el sector.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         )}
       />
     </div>
