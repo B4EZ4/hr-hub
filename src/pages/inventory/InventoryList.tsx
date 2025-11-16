@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, Package } from 'lucide-react';
+import { Plus, Eye, Package, Edit } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
 
 export default function InventoryList() {
@@ -85,18 +85,18 @@ export default function InventoryList() {
           <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
           <p className="text-muted-foreground">Gestión de EPP, herramientas y equipos</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/inventario/entregas')}>
-            <Package className="mr-2 h-4 w-4" />
-            Entregas
-          </Button>
-          {canManageUsers && (
+        {canManageUsers && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/inventario/asignar')}>
+              <Package className="mr-2 h-4 w-4" />
+              Asignar Inventario
+            </Button>
             <Button onClick={() => navigate('/inventario/new')}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Artículo
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <DataTable
@@ -105,11 +105,11 @@ export default function InventoryList() {
         searchable
         searchPlaceholder="Buscar artículos..."
         emptyMessage="No hay artículos en inventario."
-        onRowClick={(row) => navigate(`/inventario/${row.id}`)}
+        onRowClick={(row) => navigate(`/inventario/${row.id}/edit`)}
         actions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/inventario/${row.id}`)}>
-            <Eye className="mr-2 h-4 w-4" />
-            Ver detalle
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/inventario/${row.id}/edit`)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Editar
           </Button>
         )}
       />

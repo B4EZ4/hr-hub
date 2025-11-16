@@ -21,8 +21,15 @@ import IncidentsList from "./pages/incidents/IncidentsList";
 import IncidentForm from "./pages/incidents/IncidentForm";
 import IncidentDetail from "./pages/incidents/IncidentDetail";
 import InventoryList from "./pages/inventory/InventoryList";
+import InventoryForm from "./pages/inventory/InventoryForm";
+import InventoryAssignment from "./pages/inventory/InventoryAssignment";
 import DocumentsList from "./pages/documents/DocumentsList";
+import DocumentForm from "./pages/documents/DocumentForm";
 import InspectionsList from "./pages/safety/InspectionsList";
+import InspectionForm from "./pages/safety/InspectionForm";
+import InspectionDetail from "./pages/safety/InspectionDetail";
+import SectorsList from "./pages/safety/SectorsList";
+import SectorForm from "./pages/safety/SectorForm";
 import Settings from "./pages/settings/Settings";
 
 const queryClient = new QueryClient();
@@ -76,15 +83,27 @@ const App = () => (
             <Route path="/incidencias" element={<ProtectedRoute><IncidentsList /></ProtectedRoute>} />
             <Route path="/incidencias/new" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
             <Route path="/incidencias/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
+            <Route path="/incidencias/:id/edit" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
             
             {/* Inventario */}
             <Route path="/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
+            <Route path="/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
+            <Route path="/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
+            <Route path="/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
             
             {/* Documentos */}
             <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />
+            <Route path="/documentos/new" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
             
             {/* Seguridad e Higiene */}
             <Route path="/seguridad-higiene" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inspecciones" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inspecciones/new" element={<ProtectedRoute><InspectionForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inspecciones/:id" element={<ProtectedRoute><InspectionDetail /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/inspecciones/:id/edit" element={<ProtectedRoute><InspectionForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/sectores" element={<ProtectedRoute><SectorsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/sectores/new" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/sectores/:id/edit" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
             
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

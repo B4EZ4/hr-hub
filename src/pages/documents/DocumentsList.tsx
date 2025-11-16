@@ -4,10 +4,12 @@ import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, FileText, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useRoles } from '@/hooks/useRoles';
 
 export default function DocumentsList() {
   const { canManageUsers } = useRoles();
+  const navigate = useNavigate();
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['documents'],
@@ -75,9 +77,9 @@ export default function DocumentsList() {
           <p className="text-muted-foreground">Repositorio de documentos corporativos</p>
         </div>
         {canManageUsers && (
-          <Button>
+          <Button onClick={() => navigate('/documentos/new')}>
             <Plus className="mr-2 h-4 w-4" />
-            Subir Documento
+            Cargar Documento
           </Button>
         )}
       </div>
