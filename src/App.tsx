@@ -31,6 +31,10 @@ import InspectionForm from "./pages/safety/InspectionForm";
 import InspectionDetail from "./pages/safety/InspectionDetail";
 import SectorsList from "./pages/safety/SectorsList";
 import SectorForm from "./pages/safety/SectorForm";
+import ChecklistsList from "./pages/safety/ChecklistsList";
+import ChecklistForm from "./pages/safety/ChecklistForm";
+import DocumentDetail from "./pages/documents/DocumentDetail";
+import RolesManager from "./pages/settings/RolesManager";
 import Settings from "./pages/settings/Settings";
 
 const queryClient = new QueryClient();
@@ -95,6 +99,7 @@ const App = () => (
             {/* Documentos */}
             <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />
             <Route path="/documentos/new" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
+            <Route path="/documentos/:id" element={<ProtectedRoute><DocumentDetail /></ProtectedRoute>} />
             
             {/* Seguridad e Higiene */}
             <Route path="/seguridad-higiene" element={<ProtectedRoute><SafetyHome /></ProtectedRoute>} />
@@ -105,6 +110,9 @@ const App = () => (
             <Route path="/seguridad-higiene/sectores" element={<ProtectedRoute><SectorsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/new" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/:id/edit" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/checklists" element={<ProtectedRoute><ChecklistsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/checklists/new" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
@@ -112,6 +120,7 @@ const App = () => (
             
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/settings/roles" element={<ProtectedRoute><RolesManager /></ProtectedRoute>} />
             
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<NotFound />} />

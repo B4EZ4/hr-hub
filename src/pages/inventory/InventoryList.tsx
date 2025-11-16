@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Eye, Package, Edit } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import { StockCriticalPanel } from '@/components/inventory/StockCriticalPanel';
 
 export default function InventoryList() {
   const navigate = useNavigate();
@@ -81,6 +82,8 @@ export default function InventoryList() {
   const basePath = location.pathname.startsWith('/seguridad-higiene') ? '/seguridad-higiene/inventario' : '/inventario';
   return (
     <div className="space-y-6">
+      <StockCriticalPanel />
+      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
