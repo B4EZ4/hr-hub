@@ -3,9 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, FileText, Download } from 'lucide-react';
+import { Plus, FileText, Download, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useRoles } from '@/hooks/useRoles';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function DocumentsList() {
   const { canManageUsers } = useRoles();
@@ -84,28 +84,62 @@ export default function DocumentsList() {
         )}
       </div>
 
-      <DataTable
+      {documents.length === 0 && !isLoading && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No hay documentos</h3>
+            <p className="text-muted-foreground mb-4">
+              Comienza subiendo el primer documento al repositorio.
+            </p>
+            {canManageUsers && (
+              <Button onClick={() => navigate('/documentos/new')}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cargar Primer Documento
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {documents.length > 0 && (
         data={documents}
         columns={columns}
         searchable
         searchPlaceholder="Buscar documentos..."
         emptyMessage="No hay documentos disponibles."
+        onRowClick={(row) => navigate(`/documentos/${row.id}`)}
         actions={(row) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const { data } = (supabase as any).storage
-                .from('documents')
-                .getPublicUrl((row as any).file_path);
-              window.open(data.publicUrl, '_blank');
-            }}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Descargar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/documentos/${row.id}`);
+              }}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              Ver
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                const { data } = (supabase as any).storage
+                  .from('documents')
+                  .getPublicUrl((row as any).file_path);
+                window.open(data.publicUrl, '_blank');
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Descargar
+            </Button>
+          </div>
         )}
-      />
+        )}
+      )}
     </div>
   );
 }
