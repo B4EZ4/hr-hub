@@ -12,6 +12,18 @@ import { useAuth } from "./contexts/AuthContext";
 import UsersList from "./pages/users/UsersList";
 import UserForm from "./pages/users/UserForm";
 import UserDetail from "./pages/users/UserDetail";
+import ContractsList from "./pages/contracts/ContractsList";
+import ContractForm from "./pages/contracts/ContractForm";
+import ContractDetail from "./pages/contracts/ContractDetail";
+import VacationRequest from "./pages/vacations/VacationRequest";
+import VacationsList from "./pages/vacations/VacationsList";
+import IncidentsList from "./pages/incidents/IncidentsList";
+import IncidentForm from "./pages/incidents/IncidentForm";
+import IncidentDetail from "./pages/incidents/IncidentDetail";
+import InventoryList from "./pages/inventory/InventoryList";
+import DocumentsList from "./pages/documents/DocumentsList";
+import InspectionsList from "./pages/safety/InspectionsList";
+import Settings from "./pages/settings/Settings";
 
 const queryClient = new QueryClient();
 
@@ -42,46 +54,41 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios"
-              element={
-                <ProtectedRoute>
-                  <UsersList />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios/new"
-              element={
-                <ProtectedRoute>
-                  <UserForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios/:id"
-              element={
-                <ProtectedRoute>
-                  <UserDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios/:id/edit"
-              element={
-                <ProtectedRoute>
-                  <UserForm />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            
+            {/* Usuarios */}
+            <Route path="/usuarios" element={<ProtectedRoute><UsersList /></ProtectedRoute>} />
+            <Route path="/usuarios/new" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+            <Route path="/usuarios/:id" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
+            <Route path="/usuarios/:id/edit" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+            
+            {/* Contratos */}
+            <Route path="/contratos" element={<ProtectedRoute><ContractsList /></ProtectedRoute>} />
+            <Route path="/contratos/new" element={<ProtectedRoute><ContractForm /></ProtectedRoute>} />
+            <Route path="/contratos/:id" element={<ProtectedRoute><ContractDetail /></ProtectedRoute>} />
+            <Route path="/contratos/:id/edit" element={<ProtectedRoute><ContractForm /></ProtectedRoute>} />
+            
+            {/* Vacaciones */}
+            <Route path="/vacaciones/solicitar" element={<ProtectedRoute><VacationRequest /></ProtectedRoute>} />
+            <Route path="/vacaciones" element={<ProtectedRoute><VacationsList /></ProtectedRoute>} />
+            
+            {/* Incidencias */}
+            <Route path="/incidencias" element={<ProtectedRoute><IncidentsList /></ProtectedRoute>} />
+            <Route path="/incidencias/new" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
+            <Route path="/incidencias/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
+            
+            {/* Inventario */}
+            <Route path="/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
+            
+            {/* Documentos */}
+            <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />
+            
+            {/* Seguridad e Higiene */}
+            <Route path="/seguridad-higiene" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
+            
+            {/* Configuración */}
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

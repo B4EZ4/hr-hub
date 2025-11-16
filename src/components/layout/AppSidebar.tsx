@@ -42,7 +42,7 @@ export const AppSidebar = () => {
   ];
 
   const settingsItems = [
-    { title: 'Configuración', url: '/settings', icon: Settings, show: canViewAuditLogs },
+    { title: 'Configuración', url: '/settings', icon: Settings, show: canManageUsers || canViewAuditLogs },
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
