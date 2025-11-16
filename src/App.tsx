@@ -100,6 +100,7 @@ const App = () => (
             <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />
             <Route path="/documentos/new" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
             <Route path="/documentos/:id" element={<ProtectedRoute><DocumentDetail /></ProtectedRoute>} />
+            <Route path="/documentos/:id/edit" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
             
             {/* Seguridad e Higiene */}
             <Route path="/seguridad-higiene" element={<ProtectedRoute><SafetyHome /></ProtectedRoute>} />

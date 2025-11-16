@@ -1,37 +1,53 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/shared/FileUploader';
-import { ArrowLeft } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const formSchema = z.object({
-  title: z.string().min(1, 'El título es requerido'),
-  description: z.string().optional(),
+  title: z.string().min(1, 'El título es requerido').max(200, 'Máximo 200 caracteres'),
+  description: z.string().max(1000, 'Máximo 1000 caracteres').optional(),
   category: z.enum(['contrato', 'politica', 'procedimiento', 'manual', 'certificado', 'otro']),
   is_public: z.boolean(),
-  tags: z.string().optional(),
+  tags: z.string().max(500, 'Máximo 500 caracteres').optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 export default function DocumentForm() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const isEditing = !!id;
+
+  const { data: document, isLoading: loadingDocument } = useQuery({
+    queryKey: ['document', id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('documents')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEditing,
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,9 +60,22 @@ export default function DocumentForm() {
     },
   });
 
+  useEffect(() => {
+    if (document) {
+      form.reset({
+        title: document.title,
+        description: document.description || '',
+        category: document.category,
+        is_public: document.is_public,
+        tags: document.tags?.join(', ') || '',
+      });
+      setUploadedFile(document.file_path);
+    }
+  }, [document, form]);
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      if (!uploadedFile) {
+      if (!uploadedFile && !isEditing) {
         throw new Error('Debe subir un archivo');
       }
 
@@ -60,23 +89,36 @@ export default function DocumentForm() {
         category: data.category,
         is_public: data.is_public,
         tags,
-        file_path: uploadedFile,
-        uploaded_by: user!.id,
+        ...(uploadedFile && uploadedFile !== document?.file_path && { 
+          file_path: uploadedFile,
+          version: isEditing ? (document?.version || 1) + 1 : 1 
+        }),
+        ...(!isEditing && { uploaded_by: user!.id }),
       };
 
-      const { error } = await (supabase as any)
-        .from('documents')
-        .insert(payload);
-
-      if (error) throw error;
+      if (isEditing) {
+        const { error } = await (supabase as any)
+          .from('documents')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('documents')
+          .insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Documento cargado correctamente');
+      if (isEditing) {
+        queryClient.invalidateQueries({ queryKey: ['document', id] });
+      }
+      toast.success(isEditing ? 'Documento actualizado' : 'Documento cargado correctamente');
       navigate('/documentos');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Error al cargar el documento');
+      toast.error(error.message || 'Error al guardar el documento');
     },
   });
 
@@ -84,18 +126,36 @@ export default function DocumentForm() {
     mutation.mutate(data);
   };
 
+  if (loadingDocument) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/documentos')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Cargar Documento</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isEditing ? 'Editar Documento' : 'Cargar Documento'}
+          </h1>
+          <p className="text-muted-foreground">
+            {isEditing ? 'Actualiza la información del documento' : 'Sube un nuevo documento al repositorio'}
+          </p>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Información del Documento</CardTitle>
+          <CardDescription>
+            Completa los campos con los datos del documento
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -105,7 +165,7 @@ export default function DocumentForm() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Título</FormLabel>
+                    <FormLabel>Título *</FormLabel>
                     <FormControl>
                       <Input placeholder="Título del documento" {...field} />
                     </FormControl>
@@ -189,7 +249,7 @@ export default function DocumentForm() {
               />
 
               <div>
-                <FormLabel>Archivo</FormLabel>
+                <FormLabel>Archivo * {isEditing && '(opcional)'}</FormLabel>
                 <FileUploader
                   bucket="documents"
                   path="general"
@@ -201,8 +261,8 @@ export default function DocumentForm() {
               </div>
 
               <div className="flex gap-4">
-                <Button type="submit" disabled={mutation.isPending || !uploadedFile}>
-                  {mutation.isPending ? 'Guardando...' : 'Guardar'}
+                <Button type="submit" disabled={mutation.isPending || (!uploadedFile && !isEditing)}>
+                  {mutation.isPending ? 'Guardando...' : isEditing ? 'Actualizar Documento' : 'Subir Documento'}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => navigate('/documentos')}>
                   Cancelar
