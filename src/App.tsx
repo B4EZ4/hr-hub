@@ -32,12 +32,16 @@ import InspectionForm from "./pages/safety/InspectionForm";
 import InspectionDetail from "./pages/safety/InspectionDetail";
 import SectorsList from "./pages/safety/SectorsList";
 import SectorForm from "./pages/safety/SectorForm";
+import SectorDetail from "./pages/safety/SectorDetail";
 import ChecklistsList from "./pages/safety/ChecklistsList";
 import ChecklistForm from "./pages/safety/ChecklistForm";
+import ChecklistDetail from "./pages/safety/ChecklistDetail";
 import AreaEvaluationsList from "./pages/safety/AreaEvaluationsList";
 import AreaEvaluationForm from "./pages/safety/AreaEvaluationForm";
+import AreaEvaluationDetail from "./pages/safety/AreaEvaluationDetail";
 import MaintenancesList from "./pages/safety/MaintenancesList";
 import MaintenanceForm from "./pages/safety/MaintenanceForm";
+import MaintenanceDetail from "./pages/safety/MaintenanceDetail";
 import AlertsList from "./pages/safety/AlertsList";
 import InspectionExecution from "./pages/safety/InspectionExecution";
 import InventoryHistory from "./pages/safety/InventoryHistory";
@@ -120,16 +124,19 @@ const App = () => (
             <Route path="/seguridad-higiene/inspecciones/:id/ejecutar" element={<ProtectedRoute><InspectionExecution /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores" element={<ProtectedRoute><SectorsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/new" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/sectores/:id" element={<ProtectedRoute><SectorDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/sectores/:id/edit" element={<ProtectedRoute><SectorForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists" element={<ProtectedRoute><ChecklistsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/new" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
-            <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/:id/edit" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/evaluaciones" element={<ProtectedRoute><AreaEvaluationsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/evaluaciones/new" element={<ProtectedRoute><AreaEvaluationForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/evaluaciones/:id" element={<ProtectedRoute><AreaEvaluationDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/evaluaciones/:id/edit" element={<ProtectedRoute><AreaEvaluationForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos" element={<ProtectedRoute><MaintenancesList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos/new" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/mantenimientos/:id" element={<ProtectedRoute><MaintenanceDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/mantenimientos/:id/edit" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/alertas" element={<ProtectedRoute><AlertsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/historial" element={<ProtectedRoute><InventoryHistory /></ProtectedRoute>} />
