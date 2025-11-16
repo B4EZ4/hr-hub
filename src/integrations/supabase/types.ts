@@ -203,6 +203,100 @@ export type Database = {
         }
         Relationships: []
       }
+      inspection_progress: {
+        Row: {
+          approval_percentage: number | null
+          approved_items: number | null
+          completed_items: number | null
+          completion_percentage: number | null
+          id: string
+          inspection_id: string
+          pending_items: number | null
+          rejected_items: number | null
+          total_items: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          approval_percentage?: number | null
+          approved_items?: number | null
+          completed_items?: number | null
+          completion_percentage?: number | null
+          id?: string
+          inspection_id: string
+          pending_items?: number | null
+          rejected_items?: number | null
+          total_items?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          approval_percentage?: number | null
+          approved_items?: number | null
+          completed_items?: number | null
+          completion_percentage?: number | null
+          id?: string
+          inspection_id?: string
+          pending_items?: number | null
+          rejected_items?: number | null
+          total_items?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_progress_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: true
+            referencedRelation: "sh_inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_resolved: boolean | null
+          item_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_resolved?: boolean | null
+          item_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_resolved?: boolean | null
+          item_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_alerts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_assignments: {
         Row: {
           assigned_date: string
@@ -243,6 +337,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "inventory_assignments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_item_states: {
+        Row: {
+          change_reason: string | null
+          changed_by: string
+          created_at: string | null
+          id: string
+          item_id: string
+          observations: string | null
+          previous_state: string | null
+          state: string
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_by: string
+          created_at?: string | null
+          id?: string
+          item_id: string
+          observations?: string | null
+          previous_state?: string | null
+          state: string
+        }
+        Update: {
+          change_reason?: string | null
+          changed_by?: string
+          created_at?: string | null
+          id?: string
+          item_id?: string
+          observations?: string | null
+          previous_state?: string | null
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_item_states_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "inventory_items"
@@ -291,6 +426,128 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      inventory_maintenance: {
+        Row: {
+          completed_date: string | null
+          cost: number | null
+          created_at: string | null
+          description: string | null
+          file_paths: string[] | null
+          id: string
+          item_id: string
+          maintenance_type: string
+          observations: string | null
+          performed_by: string | null
+          scheduled_date: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string | null
+          description?: string | null
+          file_paths?: string[] | null
+          id?: string
+          item_id: string
+          maintenance_type: string
+          observations?: string | null
+          performed_by?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string | null
+          description?: string | null
+          file_paths?: string[] | null
+          id?: string
+          item_id?: string
+          maintenance_type?: string
+          observations?: string | null
+          performed_by?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_maintenance_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_movements: {
+        Row: {
+          assignment_id: string | null
+          authorized_by: string | null
+          condition_after: string | null
+          condition_before: string | null
+          created_at: string | null
+          damage_description: string | null
+          file_paths: string[] | null
+          id: string
+          item_id: string
+          movement_date: string | null
+          movement_type: string
+          observations: string | null
+          quantity: number
+          user_id: string | null
+        }
+        Insert: {
+          assignment_id?: string | null
+          authorized_by?: string | null
+          condition_after?: string | null
+          condition_before?: string | null
+          created_at?: string | null
+          damage_description?: string | null
+          file_paths?: string[] | null
+          id?: string
+          item_id: string
+          movement_date?: string | null
+          movement_type: string
+          observations?: string | null
+          quantity: number
+          user_id?: string | null
+        }
+        Update: {
+          assignment_id?: string | null
+          authorized_by?: string | null
+          condition_after?: string | null
+          condition_before?: string | null
+          created_at?: string | null
+          damage_description?: string | null
+          file_paths?: string[] | null
+          id?: string
+          item_id?: string
+          movement_date?: string | null
+          movement_type?: string
+          observations?: string | null
+          quantity?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -395,6 +652,89 @@ export type Database = {
             columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sh_area_evaluations: {
+        Row: {
+          average_score: number | null
+          cleanliness_score: number | null
+          compliance_score: number | null
+          created_at: string | null
+          ergonomics_score: number | null
+          evaluated_by: string
+          evaluation_date: string
+          file_paths: string[] | null
+          furniture_condition_score: number | null
+          hazmat_control_score: number | null
+          id: string
+          lighting_score: number | null
+          observations: string | null
+          order_score: number | null
+          recommendations: string | null
+          risk_control_score: number | null
+          sector_id: string
+          signage_score: number | null
+          tools_condition_score: number | null
+          total_score: number | null
+          updated_at: string | null
+          ventilation_score: number | null
+        }
+        Insert: {
+          average_score?: number | null
+          cleanliness_score?: number | null
+          compliance_score?: number | null
+          created_at?: string | null
+          ergonomics_score?: number | null
+          evaluated_by: string
+          evaluation_date?: string
+          file_paths?: string[] | null
+          furniture_condition_score?: number | null
+          hazmat_control_score?: number | null
+          id?: string
+          lighting_score?: number | null
+          observations?: string | null
+          order_score?: number | null
+          recommendations?: string | null
+          risk_control_score?: number | null
+          sector_id: string
+          signage_score?: number | null
+          tools_condition_score?: number | null
+          total_score?: number | null
+          updated_at?: string | null
+          ventilation_score?: number | null
+        }
+        Update: {
+          average_score?: number | null
+          cleanliness_score?: number | null
+          compliance_score?: number | null
+          created_at?: string | null
+          ergonomics_score?: number | null
+          evaluated_by?: string
+          evaluation_date?: string
+          file_paths?: string[] | null
+          furniture_condition_score?: number | null
+          hazmat_control_score?: number | null
+          id?: string
+          lighting_score?: number | null
+          observations?: string | null
+          order_score?: number | null
+          recommendations?: string | null
+          risk_control_score?: number | null
+          sector_id?: string
+          signage_score?: number | null
+          tools_condition_score?: number | null
+          total_score?: number | null
+          updated_at?: string | null
+          ventilation_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sh_area_evaluations_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sh_sectors"
             referencedColumns: ["id"]
           },
         ]
