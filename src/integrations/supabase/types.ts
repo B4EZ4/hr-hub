@@ -14,6 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
+      contracts: {
+        Row: {
+          contract_number: string
+          created_at: string | null
+          department: string | null
+          end_date: string | null
+          file_path: string | null
+          id: string
+          notes: string | null
+          position: string
+          salary: number | null
+          start_date: string
+          status: string | null
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contract_number: string
+          created_at?: string | null
+          department?: string | null
+          end_date?: string | null
+          file_path?: string | null
+          id?: string
+          notes?: string | null
+          position: string
+          salary?: number | null
+          start_date: string
+          status?: string | null
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contract_number?: string
+          created_at?: string | null
+          department?: string | null
+          end_date?: string | null
+          file_path?: string | null
+          id?: string
+          notes?: string | null
+          position?: string
+          salary?: number | null
+          start_date?: string
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          avatar_url: string | null
+          birth_date: string | null
+          created_at: string | null
+          department: string | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          full_name: string
+          hire_date: string | null
+          id: string
+          manager_id: string | null
+          must_change_password: boolean | null
+          phone: string | null
+          position: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          avatar_url?: string | null
+          birth_date?: string | null
+          created_at?: string | null
+          department?: string | null
+          email: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name: string
+          hire_date?: string | null
+          id?: string
+          manager_id?: string | null
+          must_change_password?: boolean | null
+          phone?: string | null
+          position?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          avatar_url?: string | null
+          birth_date?: string | null
+          created_at?: string | null
+          department?: string | null
+          email?: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name?: string
+          hire_date?: string | null
+          id?: string
+          manager_id?: string | null
+          must_change_password?: boolean | null
+          phone?: string | null
+          position?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -32,6 +154,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vacation_balances: {
+        Row: {
+          available_days: number | null
+          created_at: string | null
+          id: string
+          total_days: number | null
+          updated_at: string | null
+          used_days: number | null
+          user_id: string
+          year: number
+        }
+        Insert: {
+          available_days?: number | null
+          created_at?: string | null
+          id?: string
+          total_days?: number | null
+          updated_at?: string | null
+          used_days?: number | null
+          user_id: string
+          year?: number
+        }
+        Update: {
+          available_days?: number | null
+          created_at?: string | null
+          id?: string
+          total_days?: number | null
+          updated_at?: string | null
+          used_days?: number | null
+          user_id?: string
+          year?: number
         }
         Relationships: []
       }
