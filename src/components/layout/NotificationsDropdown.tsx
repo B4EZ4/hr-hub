@@ -27,12 +27,12 @@ export const NotificationsDropdown = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20) as any;
+        .limit(20);
 
       if (error) throw error;
       return data || [];
@@ -42,9 +42,9 @@ export const NotificationsDropdown = () => {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() } as any)
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('id', notificationId);
 
       if (error) throw error;
@@ -58,9 +58,9 @@ export const NotificationsDropdown = () => {
     mutationFn: async () => {
       if (!user) return;
       
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() } as any)
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .eq('is_read', false);
 
