@@ -34,6 +34,11 @@ import SectorsList from "./pages/safety/SectorsList";
 import SectorForm from "./pages/safety/SectorForm";
 import ChecklistsList from "./pages/safety/ChecklistsList";
 import ChecklistForm from "./pages/safety/ChecklistForm";
+import AreaEvaluationsList from "./pages/safety/AreaEvaluationsList";
+import AreaEvaluationForm from "./pages/safety/AreaEvaluationForm";
+import MaintenancesList from "./pages/safety/MaintenancesList";
+import MaintenanceForm from "./pages/safety/MaintenanceForm";
+import AlertsList from "./pages/safety/AlertsList";
 import DocumentDetail from "./pages/documents/DocumentDetail";
 import RolesManager from "./pages/settings/RolesManager";
 import Settings from "./pages/settings/Settings";
@@ -115,6 +120,11 @@ const App = () => (
             <Route path="/seguridad-higiene/checklists" element={<ProtectedRoute><ChecklistsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/new" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/checklists/:id" element={<ProtectedRoute><ChecklistForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/evaluaciones" element={<ProtectedRoute><AreaEvaluationsList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/evaluaciones/new" element={<ProtectedRoute><AreaEvaluationForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/mantenimientos" element={<ProtectedRoute><MaintenancesList /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/mantenimientos/new" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
+            <Route path="/seguridad-higiene/alertas" element={<ProtectedRoute><AlertsList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id" element={<ProtectedRoute><InventoryDetail /></ProtectedRoute>} />
