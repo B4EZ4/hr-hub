@@ -112,12 +112,14 @@ export default function ChecklistsList() {
           <h1 className="text-3xl font-bold tracking-tight">Checklists de S&H</h1>
           <p className="text-muted-foreground">Plantillas reutilizables para inspecciones</p>
         </div>
-        {canManageSH && (
-          <Button onClick={() => navigate('/seguridad-higiene/checklists/new')}>
+          <Button
+            onClick={() => navigate('/seguridad-higiene/checklists/new')}
+            disabled={!canManageSH}
+            title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Nuevo Checklist
           </Button>
-        )}
       </div>
 
       <DataTable
@@ -137,39 +139,44 @@ export default function ChecklistsList() {
               <Eye className="mr-2 h-4 w-4" />
               Ver
             </Button>
-            {canManageSH && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(`/seguridad-higiene/checklists/${row.id}/edit`)}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <Trash2 className="mr-2 h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/checklists/${row.id}/edit`)}
+              disabled={!canManageSH}
+              title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Editar
+            </Button>
+            {canManageSH ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar checklist?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminará permanentemente el checklist.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
                       Eliminar
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar checklist?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Se eliminará permanentemente el checklist.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
-                        Eliminar
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Button variant="ghost" size="sm" disabled title="Requiere rol Oficial S&H o Superadmin">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Eliminar
+              </Button>
             )}
           </div>
         )}

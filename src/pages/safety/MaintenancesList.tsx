@@ -122,12 +122,14 @@ export default function MaintenancesList() {
             <p className="text-muted-foreground">Gestión de mantenimientos de equipos</p>
           </div>
         </div>
-        {canManageSH && (
-          <Button onClick={() => navigate('/seguridad-higiene/mantenimientos/new')}>
+          <Button
+            onClick={() => navigate('/seguridad-higiene/mantenimientos/new')}
+            disabled={!canManageSH}
+            title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Registrar Mantenimiento
           </Button>
-        )}
       </div>
 
       <DataTable

@@ -109,12 +109,14 @@ export default function SectorsList() {
             <p className="text-muted-foreground">Gestión de sectores de seguridad e higiene</p>
           </div>
         </div>
-        {canManageSH && (
-          <Button onClick={() => navigate('/seguridad-higiene/sectores/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Sector
-          </Button>
-        )}
+        <Button
+          onClick={() => navigate('/seguridad-higiene/sectores/new')}
+          disabled={!canManageSH}
+          title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo Sector
+        </Button>
       </div>
 
       <DataTable
@@ -134,7 +136,15 @@ export default function SectorsList() {
               <Edit className="mr-2 h-4 w-4" />
               Editar
             </Button>
-            {canManageSH && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/seguridad-higiene/inspecciones?sector=${row.id}`)}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              Ver inspecciones
+            </Button>
+            {canManageSH ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="sm">
@@ -157,6 +167,11 @@ export default function SectorsList() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            ) : (
+              <Button variant="ghost" size="sm" disabled title="Requiere rol Oficial S&H o Superadmin">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Eliminar
+              </Button>
             )}
           </div>
         )}

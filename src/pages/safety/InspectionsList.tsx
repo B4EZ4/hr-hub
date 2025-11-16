@@ -80,12 +80,14 @@ export default function InspectionsList() {
           <Button variant="outline" onClick={() => navigate('/seguridad-higiene/sectores')}>
             Sectores
           </Button>
-          {canManageSH && (
-            <Button onClick={() => navigate('/seguridad-higiene/inspecciones/new')}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Inspección
-            </Button>
-          )}
+          <Button
+            onClick={() => navigate('/seguridad-higiene/inspecciones/new')}
+            disabled={!canManageSH}
+            title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Crear Inspección
+          </Button>
         </div>
       </div>
 
@@ -98,20 +100,24 @@ export default function InspectionsList() {
         onRowClick={(row) => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
         actions={(row: any) => (
           <div className="flex gap-2">
-            {row.status === 'programada' && canManageSH && (
+            {row.status === 'programada' && (
               <Button
                 variant="default"
                 size="sm"
                 onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
+                disabled={!canManageSH}
+                title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
               >
                 Iniciar Inspección
               </Button>
             )}
-            {row.status === 'en_progreso' && canManageSH && (
+            {row.status === 'en_progreso' && (
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
+                disabled={!canManageSH}
+                title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
               >
                 Continuar
               </Button>
