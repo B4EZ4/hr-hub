@@ -1,13 +1,13 @@
 import {
   LayoutDashboard,
   Users,
-  FileText,
   Calendar,
   AlertTriangle,
   Shield,
-  Package,
   FolderOpen,
   Settings,
+  Briefcase,
+  Clock8,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -32,8 +32,8 @@ export const AppSidebar = () => {
 
   const mainItems = [
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, show: true },
-    { title: 'Usuarios', url: '/usuarios', icon: Users, show: canManageUsers },
-    { title: 'Contratos', url: '/contratos', icon: FileText, show: true },
+    { title: 'Contratos', url: '/reclutamiento', icon: Briefcase, show: true },
+    { title: 'Asistencia', url: '/asistencia', icon: Clock8, show: true },
     { title: 'Vacaciones', url: '/vacaciones', icon: Calendar, show: true },
     { title: 'Incidencias', url: '/incidencias', icon: AlertTriangle, show: true },
     { title: 'Seguridad e Higiene', url: '/seguridad-higiene', icon: Shield, show: true },
@@ -42,6 +42,7 @@ export const AppSidebar = () => {
 
   const settingsItems = [
     { title: 'Configuración', url: '/settings', icon: Settings, show: canManageUsers || canViewAuditLogs },
+    { title: 'Usuarios', url: '/usuarios', icon: Users, show: canManageUsers },
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');

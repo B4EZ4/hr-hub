@@ -1,17 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { 
-  FileText, 
-  Users, 
-  Calendar, 
+import {
+  FileText,
+  Calendar,
   AlertTriangle,
-  FileSpreadsheet,
   Shield,
   Package,
   TrendingUp,
   Activity,
-  ArrowRight
+  ArrowRight,
+  Briefcase,
+  CalendarClock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRoles } from "@/hooks/useRoles";
@@ -20,10 +20,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
+type UpcomingInterviewSummary = {
+  id: string;
+  candidateId?: string;
+  candidateName: string;
+  positionTitle: string;
+  scheduledAt?: string;
+  interviewType?: string;
+  location?: string;
+  status?: string;
+};
+
+type RecruitmentSummary = {
+  openPositions: number;
+  activeCandidates: number;
+  pipelineTotal: number;
+  upcomingInterviews: UpcomingInterviewSummary[];
+  interviewsThisWeek: number;
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { canManageUsers, canManageContracts, canApproveVacations, canManageSH } = useRoles();
+  const { canManageRecruitment, canManageSH } = useRoles();
 
   // Fetch user profile
   const { data: profile } = useQuery({
@@ -41,27 +60,87 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  // Fetch contracts count and expiring
-  const { data: contractsData } = useQuery({
-    queryKey: ['contracts-stats'],
+  // Fetch recruitment summary to replace contracts module
+  const { data: recruitmentStats } = useQuery<RecruitmentSummary>({
+    queryKey: ['recruitment-summary-dashboard'],
     queryFn: async () => {
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      
-      const { count: totalCount } = await (supabase as any)
-        .from('contracts')
-        .select('*', { count: 'exact', head: true });
-      
-      const { data: expiring } = await (supabase as any)
-        .from('contracts')
-        .select('*, profiles!contracts_user_id_fkey(full_name)')
-        .eq('status', 'activo')
-        .not('end_date', 'is', null)
-        .lte('end_date', thirtyDaysFromNow.toISOString().split('T')[0])
-        .order('end_date', { ascending: true })
-        .limit(5);
-      
-      return { total: totalCount || 0, expiring: expiring || [] };
+      const nowIso = new Date().toISOString();
+
+      const [positionsRes, candidatesRes, applicationsRes, interviewsRes] = await Promise.all([
+        (supabase as any)
+          .from('recruitment_positions')
+          .select('id,status,title'),
+        (supabase as any)
+          .from('recruitment_candidates')
+          .select('id,status,full_name'),
+        (supabase as any)
+          .from('recruitment_applications')
+          .select('id,status,candidate_id,position_id'),
+        (supabase as any)
+          .from('recruitment_interviews')
+          .select('id,application_id,scheduled_at,interview_type,location,status')
+          .gte('scheduled_at', nowIso)
+          .order('scheduled_at', { ascending: true })
+          .limit(5),
+      ]);
+
+      if (positionsRes.error) throw positionsRes.error;
+      if (candidatesRes.error) throw candidatesRes.error;
+      if (applicationsRes.error) throw applicationsRes.error;
+      if (interviewsRes.error) throw interviewsRes.error;
+
+      const positions = positionsRes.data || [];
+      const candidates = candidatesRes.data || [];
+      const applications = applicationsRes.data || [];
+      const interviews = interviewsRes.data || [];
+
+      const openPositions = positions.filter((position: any) =>
+        ['abierta', 'en_proceso'].includes(position.status || '')
+      ).length;
+
+      const activeCandidates = candidates.filter((candidate: any) => candidate.status !== 'archivado').length;
+
+      const pipelineStatuses = new Set(['nuevo', 'en_revision', 'entrevista', 'oferta', 'contratado']);
+      const pipelineTotal = applications.filter((application: any) => pipelineStatuses.has(application.status || '')).length;
+
+      const applicationsMap = new Map(applications.map((application: any) => [application.id, application]));
+      const candidatesMap = new Map(candidates.map((candidate: any) => [candidate.id, candidate]));
+      const positionsMap = new Map(positions.map((position: any) => [position.id, position]));
+
+      const upcomingInterviews = interviews.map((interview: any) => {
+        const application = applicationsMap.get(interview.application_id);
+        const candidate = application ? candidatesMap.get(application.candidate_id) : undefined;
+        const position = application && application.position_id ? positionsMap.get(application.position_id) : undefined;
+
+        return {
+          id: interview.id,
+          candidateId: candidate?.id,
+          candidateName: candidate?.full_name || 'Candidato sin nombre',
+          positionTitle: position?.title || 'Posición sin título',
+          scheduledAt: interview.scheduled_at,
+          interviewType: interview.interview_type,
+          location: interview.location,
+          status: interview.status,
+        } as UpcomingInterviewSummary;
+      });
+
+      const today = new Date();
+      const weekAhead = new Date();
+      weekAhead.setDate(today.getDate() + 7);
+
+      const interviewsThisWeek = upcomingInterviews.filter((interview) => {
+        if (!interview.scheduledAt) return false;
+        const date = new Date(interview.scheduledAt);
+        return date >= today && date <= weekAhead;
+      }).length;
+
+      return {
+        openPositions,
+        activeCandidates,
+        pipelineTotal,
+        upcomingInterviews,
+        interviewsThisWeek,
+      };
     },
   });
 
@@ -164,13 +243,13 @@ export default function Dashboard() {
   const statsCards = [
     {
       title: "Contratos",
-      value: contractsData?.total || 0,
-      subtitle: `${contractsData?.expiring?.length || 0} por vencer`,
-      icon: FileSpreadsheet,
+      value: recruitmentStats?.openPositions || 0,
+      subtitle: `${recruitmentStats?.activeCandidates || 0} candidatos activos`,
+      icon: Briefcase,
       color: "text-blue-600",
       bgColor: "bg-blue-50 dark:bg-blue-950",
       borderColor: "border-blue-200 dark:border-blue-800",
-      onClick: () => navigate('/contratos'),
+      onClick: () => navigate('/reclutamiento'),
       show: true,
     },
     {
@@ -312,16 +391,16 @@ export default function Dashboard() {
               <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Button>
             
-            {canManageContracts && (
+            {canManageRecruitment && (
               <Button 
-                onClick={() => navigate('/contratos/new')} 
+                onClick={() => navigate('/reclutamiento/candidatos')} 
                 variant="outline" 
                 className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
               >
-                <FileSpreadsheet className="mr-3 h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
+                <Briefcase className="mr-3 h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
                 <div className="text-left">
-                  <p className="font-semibold">Nuevo Contrato</p>
-                  <p className="text-xs text-muted-foreground">Crear contrato laboral</p>
+                  <p className="font-semibold">Gestionar Contratos</p>
+                  <p className="text-xs text-muted-foreground">Vacantes y candidatos</p>
                 </div>
                 <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
               </Button>
@@ -388,37 +467,44 @@ export default function Dashboard() {
 
       {/* Detailed Info Cards */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Contratos por Vencer */}
-        {contractsData?.expiring && contractsData.expiring.length > 0 && (
+        {/* Próximas Entrevistas */}
+        {recruitmentStats?.upcomingInterviews && recruitmentStats.upcomingInterviews.length > 0 && (
           <Card className="border-2 border-blue-200 dark:border-blue-800 hover:shadow-xl transition-shadow">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950">
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                  Contratos por Vencer
+                  <CalendarClock className="h-5 w-5 text-blue-600" />
+                  Próximas Entrevistas
                 </span>
-                <Badge variant="destructive" className="animate-pulse">
-                  {contractsData.expiring.length}
+                <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
+                  {recruitmentStats.upcomingInterviews.length}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-3">
-                {contractsData.expiring.map((contract: any) => (
-                  <div 
-                    key={contract.id}
-                    className="flex items-center justify-between p-4 border-2 border-blue-100 dark:border-blue-900 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-300 dark:hover:border-blue-700 transition-all group"
-                    onClick={() => navigate(`/contratos/${contract.id}`)}
+                {recruitmentStats.upcomingInterviews.map((interview) => (
+                  <div
+                    key={interview.id}
+                    className="flex flex-col gap-2 rounded-lg border-2 border-blue-100 dark:border-blue-900 p-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-300 dark:hover:border-blue-700 transition-all"
+                    onClick={() => interview.candidateId && navigate(`/reclutamiento/candidatos/${interview.candidateId}`)}
                   >
-                    <div className="flex-1">
-                      <p className="font-semibold text-foreground group-hover:text-blue-600 transition-colors">
-                        {contract.profiles?.full_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{contract.position}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-foreground">{interview.candidateName}</p>
+                        <p className="text-sm text-muted-foreground">{interview.positionTitle}</p>
+                      </div>
+                      {interview.status && (
+                        <Badge variant="secondary">{interview.status}</Badge>
+                      )}
                     </div>
-                    <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
-                      {contract.end_date && format(new Date(contract.end_date), 'dd/MM/yyyy')}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      {interview.scheduledAt && (
+                        <span>{format(new Date(interview.scheduledAt), 'dd/MM/yyyy HH:mm')}</span>
+                      )}
+                      {interview.interviewType && <span>• {interview.interviewType}</span>}
+                      {interview.location && <span>• {interview.location}</span>}
+                    </div>
                   </div>
                 ))}
               </div>

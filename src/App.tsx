@@ -9,12 +9,10 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
 import { useAuth } from "./contexts/AuthContext";
+import { useRoles } from "./hooks/useRoles";
 import UsersList from "./pages/users/UsersList";
 import UserForm from "./pages/users/UserForm";
 import UserDetail from "./pages/users/UserDetail";
-import ContractsList from "./pages/contracts/ContractsList";
-import ContractForm from "./pages/contracts/ContractForm";
-import ContractDetail from "./pages/contracts/ContractDetail";
 import VacationRequest from "./pages/vacations/VacationRequest";
 import VacationsList from "./pages/vacations/VacationsList";
 import IncidentsList from "./pages/incidents/IncidentsList";
@@ -49,6 +47,12 @@ import InventoryAdjustment from "./pages/safety/InventoryAdjustment";
 import DocumentDetail from "./pages/documents/DocumentDetail";
 import RolesManager from "./pages/settings/RolesManager";
 import Settings from "./pages/settings/Settings";
+import RecruitmentDashboard from "./pages/recruitment/RecruitmentDashboard";
+import RecruitmentPositionsList from "./pages/recruitment/RecruitmentPositionsList";
+import RecruitmentCandidatesList from "./pages/recruitment/RecruitmentCandidatesList";
+import RecruitmentInterviewsList from "./pages/recruitment/RecruitmentInterviewsList";
+import CandidateDetail from "./pages/recruitment/CandidateDetail";
+import AttendanceDashboard from "./pages/attendance/AttendanceDashboard";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +74,24 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <AppLayout>{children}</AppLayout>;
 };
 
+const RequireManageUsers = ({ children }: { children: React.ReactNode }) => {
+  const { canManageUsers, isLoading } = useRoles();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!canManageUsers) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -82,21 +104,21 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             
             {/* Usuarios */}
-            <Route path="/usuarios" element={<ProtectedRoute><UsersList /></ProtectedRoute>} />
-            <Route path="/usuarios/new" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
-            <Route path="/usuarios/:id" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
-            <Route path="/usuarios/:id/edit" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+            <Route path="/usuarios" element={<ProtectedRoute><RequireManageUsers><UsersList /></RequireManageUsers></ProtectedRoute>} />
+            <Route path="/usuarios/new" element={<ProtectedRoute><RequireManageUsers><UserForm /></RequireManageUsers></ProtectedRoute>} />
+            <Route path="/usuarios/:id" element={<ProtectedRoute><RequireManageUsers><UserDetail /></RequireManageUsers></ProtectedRoute>} />
+            <Route path="/usuarios/:id/edit" element={<ProtectedRoute><RequireManageUsers><UserForm /></RequireManageUsers></ProtectedRoute>} />
             
-            {/* Contratos */}
-            <Route path="/contratos" element={<ProtectedRoute><ContractsList /></ProtectedRoute>} />
-            <Route path="/contratos/new" element={<ProtectedRoute><ContractForm /></ProtectedRoute>} />
-            <Route path="/contratos/:id" element={<ProtectedRoute><ContractDetail /></ProtectedRoute>} />
-            <Route path="/contratos/:id/edit" element={<ProtectedRoute><ContractForm /></ProtectedRoute>} />
+            {/* Contratos legacy - redirect to Recruitment */}
+            <Route path="/contratos/*" element={<Navigate to="/reclutamiento" replace />} />
             
             {/* Vacaciones */}
             <Route path="/vacaciones/solicitar" element={<ProtectedRoute><VacationRequest /></ProtectedRoute>} />
             <Route path="/vacaciones" element={<ProtectedRoute><VacationsList /></ProtectedRoute>} />
             
+            {/* Asistencia */}
+            <Route path="/asistencia" element={<ProtectedRoute><AttendanceDashboard /></ProtectedRoute>} />
+
             {/* Incidencias */}
             <Route path="/incidencias" element={<ProtectedRoute><IncidentsList /></ProtectedRoute>} />
             <Route path="/incidencias/new" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
@@ -108,6 +130,13 @@ const App = () => (
             <Route path="/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
+
+            {/* Reclutamiento */}
+            <Route path="/reclutamiento" element={<ProtectedRoute><RecruitmentDashboard /></ProtectedRoute>} />
+            <Route path="/reclutamiento/posiciones" element={<ProtectedRoute><RecruitmentPositionsList /></ProtectedRoute>} />
+            <Route path="/reclutamiento/candidatos" element={<ProtectedRoute><RecruitmentCandidatesList /></ProtectedRoute>} />
+            <Route path="/reclutamiento/candidatos/:id" element={<ProtectedRoute><CandidateDetail /></ProtectedRoute>} />
+            <Route path="/reclutamiento/entrevistas" element={<ProtectedRoute><RecruitmentInterviewsList /></ProtectedRoute>} />
             
             {/* Documentos */}
             <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />

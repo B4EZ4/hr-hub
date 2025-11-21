@@ -54,6 +54,13 @@ Password: Admin123!
 - `oficial_sh`: Gestión de Seguridad e Higiene
 - `auditor`: Visualización de logs y auditorías
 
+## Política de Acceso y Contraseñas
+
+- **Sin auto-registro**: Ningún colaborador puede crear su cuenta desde la pantalla de login. Todas las altas deben pasar por RRHH.
+- **Restablecimientos manuales**: Cuando un usuario pierde su contraseña, RRHH debe generar una nueva desde Supabase Dashboard o forzar el flujo de “must_change_password”.
+- **Contacto oficial**: Comunica a las áreas usuarias el canal interno (ej. `rrhh@empresa.com` o mesa de ayuda) para solicitar altas/bajas y desbloqueos.
+- **Comunicación en la UI**: La pantalla de login muestra un aviso indicando que los accesos están controlados; mantén actualizado el correo o canal de contacto mencionado.
+
 ## Siguientes Pasos
 
 1. Login con las credenciales del superadmin

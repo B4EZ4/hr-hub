@@ -5,18 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertTriangle, Loader2, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
   
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -59,48 +56,6 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password || !fullName) {
-      toast({
-        title: 'Error',
-        description: 'Por favor completa todos los campos',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        title: 'Error',
-        description: 'La contraseña debe tener al menos 6 caracteres',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
-    const { error } = await signUp(email, password, fullName);
-    
-    if (error) {
-      toast({
-        title: 'Error al registrarse',
-        description: error.message === 'User already registered'
-          ? 'Este email ya está registrado'
-          : error.message,
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'Registro exitoso',
-        description: 'Tu cuenta ha sido creada. Iniciando sesión...',
-      });
-      navigate('/dashboard');
-    }
-    setLoading(false);
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md">
@@ -111,93 +66,52 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-              <TabsTrigger value="signup">Registrarse</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="tu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Iniciar Sesión
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullname">Nombre Completo</Label>
-                  <Input
-                    id="fullname"
-                    type="text"
-                    placeholder="Juan Pérez"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="tu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Contraseña</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                    minLength={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Mínimo 6 caracteres
-                  </p>
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Registrarse
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="usuario@empresa.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Iniciar Sesión
+            </Button>
+          </form>
+
+          <div className="mt-6 space-y-3 rounded-lg border border-dashed bg-muted/50 p-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <ShieldCheck className="h-4 w-4" />
+              Acceso controlado
+            </div>
+            <p>
+              Las cuentas nuevas y los restablecimientos de contraseña solo los realiza el equipo de RRHH.
+              Si necesitas acceso o recuperar tu cuenta, comunícate con tu administrador o escribe a
+              <span className="font-semibold"> rrhh@empresa.com</span>.
+            </p>
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Nunca compartas tus credenciales con nadie.
+            </div>
+          </div>
+
           <div className="mt-6 text-center text-sm text-muted-foreground">
             <p>Usuario por defecto:</p>
             <p className="font-mono">admin@sistema-rrhh.com / Admin123!</p>

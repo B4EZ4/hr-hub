@@ -159,7 +159,7 @@ export default function Settings() {
                 <div className="space-y-0.5">
                   <Label>Notificaciones de Contratos</Label>
                   <p className="text-sm text-muted-foreground">
-                    Alertas sobre contratos por vencer
+                    Alertas sobre entrevistas y candidatos
                   </p>
                 </div>
                 <Switch defaultChecked />

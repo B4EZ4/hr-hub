@@ -47,9 +47,9 @@ export const useRoles = () => {
     isOficialSH,
     isAuditor,
     canManageUsers: isSuperadmin || isAdminRRHH,
-    canManageContracts: isSuperadmin || isAdminRRHH,
     canApproveVacations: isSuperadmin || isAdminRRHH || isManager,
     canManageSH: isSuperadmin || isOficialSH,
     canViewAuditLogs: isSuperadmin || isAuditor,
+    canManageRecruitment: isSuperadmin || isAdminRRHH || isManager,
   };
 };
