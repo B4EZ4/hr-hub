@@ -1,6 +1,6 @@
 create table if not exists attendance_records (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references profiles(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   attendance_date date not null,
   scheduled_start time not null,
   scheduled_end time not null,
@@ -16,6 +16,32 @@ create table if not exists attendance_records (
 create index if not exists attendance_records_attendance_date_idx on attendance_records(attendance_date);
 create index if not exists attendance_records_user_id_idx on attendance_records(user_id);
 
+alter table attendance_records enable row level security;
+
+create policy "Attendance admin full access" on attendance_records
+for all to authenticated
+using (
+  public.has_role(auth.uid(), 'superadmin')
+  or public.has_role(auth.uid(), 'admin_rrhh')
+)
+with check (
+  public.has_role(auth.uid(), 'superadmin')
+  or public.has_role(auth.uid(), 'admin_rrhh')
+);
+
+create policy "Users view own attendance" on attendance_records
+for select to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users update own attendance" on attendance_records
+for update to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users insert own attendance" on attendance_records
+for insert to authenticated
+with check (auth.uid() = user_id);
+
 create or replace function attendance_records_set_timestamp()
 returns trigger as $$
 begin
@@ -29,7 +55,7 @@ before update on attendance_records
 for each row execute function attendance_records_set_timestamp();
 
 insert into attendance_records (user_id, attendance_date, scheduled_start, scheduled_end, check_in, check_out, status, minutes_late, notes)
-select id,
+select user_id,
        current_date,
        time '09:00',
        time '18:00',
@@ -43,7 +69,7 @@ order by created_at nulls last
 limit 2;
 
 insert into attendance_records (user_id, attendance_date, scheduled_start, scheduled_end, check_in, check_out, status, minutes_late, notes)
-select id,
+select user_id,
        current_date,
        time '09:00',
        time '18:00',
