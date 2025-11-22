@@ -32,7 +32,7 @@ const statusLabels: Record<string, string> = {
 };
 
 async function fetchInterviews(): Promise<EnrichedInterview[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('recruitment_interviews')
     .select('*')
     .order('scheduled_at', { ascending: true });
@@ -46,7 +46,7 @@ async function fetchInterviews(): Promise<EnrichedInterview[]> {
 
   const applicationIds = Array.from(new Set(interviews.map((interview) => interview.application_id)));
 
-  const { data: applicationsData, error: applicationsError } = await (supabase as any)
+  const { data: applicationsData, error: applicationsError } = await supabase
     .from('recruitment_applications')
     .select('id, candidate_id, position_id, current_stage')
     .in('id', applicationIds);
@@ -58,13 +58,13 @@ async function fetchInterviews(): Promise<EnrichedInterview[]> {
 
   const [candidatesRes, positionsRes] = await Promise.all([
     candidatesIds.length
-      ? (supabase as any)
+      ? supabase
           .from('recruitment_candidates')
           .select('id, full_name')
           .in('id', candidatesIds)
       : Promise.resolve({ data: [], error: null }),
     positionIds.length
-      ? (supabase as any)
+      ? supabase
           .from('recruitment_positions')
           .select('id, title')
           .in('id', positionIds)
@@ -96,7 +96,7 @@ async function fetchInterviews(): Promise<EnrichedInterview[]> {
       candidateName: candidateName || 'Candidato sin asignar',
       positionTitle: positionTitle || 'Posición no disponible',
       currentStage: application?.current_stage || 'Sin etapa',
-    };
+    } as EnrichedInterview;
   });
 }
 

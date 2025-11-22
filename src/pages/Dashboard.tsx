@@ -103,14 +103,39 @@ export default function Dashboard() {
       const pipelineStatuses = new Set(['nuevo', 'en_revision', 'entrevista', 'oferta', 'contratado']);
       const pipelineTotal = applications.filter((application: any) => pipelineStatuses.has(application.status || '')).length;
 
-      const applicationsMap = new Map(applications.map((application: any) => [application.id, application]));
-      const candidatesMap = new Map(candidates.map((candidate: any) => [candidate.id, candidate]));
-      const positionsMap = new Map(positions.map((position: any) => [position.id, position]));
+      interface Application {
+        id: string;
+        candidate_id: string;
+        position_id?: string;
+        status?: string;
+      }
+
+      interface Candidate {
+        id: string;
+        full_name?: string;
+        status?: string;
+      }
+
+      interface Position {
+        id: string;
+        title?: string;
+        status?: string;
+      }
+
+      const applicationsMap = new Map<string, Application>(
+        applications.map((application: any) => [application.id, application as Application])
+      );
+      const candidatesMap = new Map<string, Candidate>(
+        candidates.map((candidate: any) => [candidate.id, candidate as Candidate])
+      );
+      const positionsMap = new Map<string, Position>(
+        positions.map((position: any) => [position.id, position as Position])
+      );
 
       const upcomingInterviews = interviews.map((interview: any) => {
         const application = applicationsMap.get(interview.application_id);
         const candidate = application ? candidatesMap.get(application.candidate_id) : undefined;
-        const position = application && application.position_id ? positionsMap.get(application.position_id) : undefined;
+        const position = application?.position_id ? positionsMap.get(application.position_id) : undefined;
 
         return {
           id: interview.id,
