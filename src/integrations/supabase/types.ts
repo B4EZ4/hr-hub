@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_records: {
+        Row: {
+          attendance_date: string
+          check_in: string | null
+          check_out: string | null
+          created_at: string
+          id: string
+          minutes_late: number
+          notes: string | null
+          scheduled_end: string
+          scheduled_start: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attendance_date: string
+          check_in?: string | null
+          check_out?: string | null
+          created_at?: string
+          id?: string
+          minutes_late?: number
+          notes?: string | null
+          scheduled_end: string
+          scheduled_start: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attendance_date?: string
+          check_in?: string | null
+          check_out?: string | null
+          created_at?: string
+          id?: string
+          minutes_late?: number
+          notes?: string | null
+          scheduled_end?: string
+          scheduled_start?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
