@@ -656,6 +656,336 @@ export type Database = {
           },
         ]
       }
+      recruitment_applications: {
+        Row: {
+          availability_date: string | null
+          candidate_id: string
+          created_at: string | null
+          created_by: string | null
+          current_stage: string | null
+          hiring_manager: string | null
+          id: string
+          position_id: string | null
+          priority: string | null
+          salary_expectation: number | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          availability_date?: string | null
+          candidate_id: string
+          created_at?: string | null
+          created_by?: string | null
+          current_stage?: string | null
+          hiring_manager?: string | null
+          id?: string
+          position_id?: string | null
+          priority?: string | null
+          salary_expectation?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          availability_date?: string | null
+          candidate_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          current_stage?: string | null
+          hiring_manager?: string | null
+          id?: string
+          position_id?: string | null
+          priority?: string | null
+          salary_expectation?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_applications_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_applications_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_candidates: {
+        Row: {
+          assigned_recruiter: string | null
+          created_at: string | null
+          current_location: string | null
+          email: string
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string | null
+          resume_url: string | null
+          seniority: string | null
+          source: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_recruiter?: string | null
+          created_at?: string | null
+          current_location?: string | null
+          email: string
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          seniority?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_recruiter?: string | null
+          created_at?: string | null
+          current_location?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          seniority?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      recruitment_files: {
+        Row: {
+          candidate_id: string
+          created_at: string | null
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          mime_type: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string | null
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          mime_type?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string | null
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          mime_type?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_files_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_interview_participants: {
+        Row: {
+          interview_id: string
+          participant_id: string
+          participant_role: string
+          response_status: string | null
+        }
+        Insert: {
+          interview_id: string
+          participant_id: string
+          participant_role: string
+          response_status?: string | null
+        }
+        Update: {
+          interview_id?: string
+          participant_id?: string
+          participant_role?: string
+          response_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_interview_participants_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_interviews: {
+        Row: {
+          application_id: string
+          created_at: string | null
+          created_by: string | null
+          decision: string
+          duration_minutes: number | null
+          feedback_summary: string | null
+          id: string
+          interview_type: string
+          location: string | null
+          meeting_url: string | null
+          next_steps: string | null
+          scheduled_at: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string | null
+          created_by?: string | null
+          decision?: string
+          duration_minutes?: number | null
+          feedback_summary?: string | null
+          id?: string
+          interview_type: string
+          location?: string | null
+          meeting_url?: string | null
+          next_steps?: string | null
+          scheduled_at: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          decision?: string
+          duration_minutes?: number | null
+          feedback_summary?: string | null
+          id?: string
+          interview_type?: string
+          location?: string | null
+          meeting_url?: string | null
+          next_steps?: string | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_notes: {
+        Row: {
+          application_id: string | null
+          author_id: string
+          content: string
+          created_at: string | null
+          id: string
+          interview_id: string | null
+          visibility: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          author_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          interview_id?: string | null
+          visibility?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          author_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          interview_id?: string | null
+          visibility?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_notes_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_notes_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_positions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          department: string | null
+          description: string | null
+          hiring_manager: string | null
+          id: string
+          location: string | null
+          seniority: string | null
+          status: string
+          title: string
+          updated_at: string | null
+          work_end_time: string | null
+          work_start_time: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          description?: string | null
+          hiring_manager?: string | null
+          id?: string
+          location?: string | null
+          seniority?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+          work_end_time?: string | null
+          work_start_time?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          description?: string | null
+          hiring_manager?: string | null
+          id?: string
+          location?: string | null
+          seniority?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+          work_end_time?: string | null
+          work_start_time?: string | null
+        }
+        Relationships: []
+      }
       sh_area_evaluations: {
         Row: {
           average_score: number | null
