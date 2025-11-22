@@ -18,7 +18,7 @@ export default function AlertsList() {
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['inventory-alerts'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('inventory_alerts')
         .select(`
           *,
