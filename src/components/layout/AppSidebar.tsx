@@ -8,6 +8,7 @@ import {
   Settings,
   Briefcase,
   Clock8,
+  Building2,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -32,6 +33,7 @@ export const AppSidebar = () => {
 
   const mainItems = [
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, show: true },
+    { title: 'Áreas y Asignaciones', url: '/areas', icon: Building2, show: true },
     { title: 'Contratos', url: '/reclutamiento', icon: Briefcase, show: true },
     { title: 'Asistencia', url: '/asistencia', icon: Clock8, show: true },
     { title: 'Vacaciones', url: '/vacaciones', icon: Calendar, show: true },

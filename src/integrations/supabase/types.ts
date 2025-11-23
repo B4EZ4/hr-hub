@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      areas: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          parent_area_id: string | null
+          responsible_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          parent_area_id?: string | null
+          responsible_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          parent_area_id?: string | null
+          responsible_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "areas_parent_area_id_fkey"
+            columns: ["parent_area_id"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           attendance_date: string
@@ -196,6 +237,110 @@ export type Database = {
           version?: number | null
         }
         Relationships: []
+      }
+      employee_activities: {
+        Row: {
+          assigned_by: string | null
+          comments: string | null
+          completion_date: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          employee_id: string
+          id: string
+          priority: string | null
+          progress_percentage: number | null
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          comments?: string | null
+          completion_date?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          employee_id: string
+          id?: string
+          priority?: string | null
+          progress_percentage?: number | null
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          comments?: string | null
+          completion_date?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          employee_id?: string
+          id?: string
+          priority?: string | null
+          progress_percentage?: number | null
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      employee_training: {
+        Row: {
+          completion_date: string | null
+          course_id: string
+          created_at: string
+          employee_id: string
+          end_date: string | null
+          id: string
+          notes: string | null
+          progress_percentage: number | null
+          responsible_id: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completion_date?: string | null
+          course_id: string
+          created_at?: string
+          employee_id: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          progress_percentage?: number | null
+          responsible_id?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completion_date?: string | null
+          course_id?: string
+          created_at?: string
+          employee_id?: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          progress_percentage?: number | null
+          responsible_id?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_training_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "training_courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       incidents: {
         Row: {
@@ -594,6 +739,62 @@ export type Database = {
           },
         ]
       }
+      job_vacancies: {
+        Row: {
+          area_id: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          position_title: string
+          priority: string | null
+          requirements: string | null
+          salary_range_max: number | null
+          salary_range_min: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          area_id: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          position_title: string
+          priority?: string | null
+          requirements?: string | null
+          salary_range_max?: number | null
+          salary_range_min?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          area_id?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          position_title?: string
+          priority?: string | null
+          requirements?: string | null
+          salary_range_max?: number | null
+          salary_range_min?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_vacancies_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -627,6 +828,63 @@ export type Database = {
           title?: string
           type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      performance_evaluations: {
+        Row: {
+          areas_for_improvement: string | null
+          comments: string | null
+          created_at: string
+          employee_id: string
+          evaluation_period_end: string
+          evaluation_period_start: string
+          evaluator_id: string
+          goals: string | null
+          id: string
+          overall_score: number | null
+          productivity_score: number | null
+          soft_skills_score: number | null
+          status: string
+          strengths: string | null
+          technical_skills_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          areas_for_improvement?: string | null
+          comments?: string | null
+          created_at?: string
+          employee_id: string
+          evaluation_period_end: string
+          evaluation_period_start: string
+          evaluator_id: string
+          goals?: string | null
+          id?: string
+          overall_score?: number | null
+          productivity_score?: number | null
+          soft_skills_score?: number | null
+          status?: string
+          strengths?: string | null
+          technical_skills_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          areas_for_improvement?: string | null
+          comments?: string | null
+          created_at?: string
+          employee_id?: string
+          evaluation_period_end?: string
+          evaluation_period_start?: string
+          evaluator_id?: string
+          goals?: string | null
+          id?: string
+          overall_score?: number | null
+          productivity_score?: number | null
+          soft_skills_score?: number | null
+          status?: string
+          strengths?: string | null
+          technical_skills_score?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -697,6 +955,72 @@ export type Database = {
             columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotions: {
+        Row: {
+          approved_by: string | null
+          approved_date: string | null
+          created_at: string
+          current_area_id: string | null
+          current_position: string
+          employee_id: string
+          id: string
+          justification: string | null
+          notes: string | null
+          proposed_date: string | null
+          status: string
+          target_area_id: string | null
+          target_position: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          approved_date?: string | null
+          created_at?: string
+          current_area_id?: string | null
+          current_position: string
+          employee_id: string
+          id?: string
+          justification?: string | null
+          notes?: string | null
+          proposed_date?: string | null
+          status?: string
+          target_area_id?: string | null
+          target_position: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          approved_date?: string | null
+          created_at?: string
+          current_area_id?: string | null
+          current_position?: string
+          employee_id?: string
+          id?: string
+          justification?: string | null
+          notes?: string | null
+          proposed_date?: string | null
+          status?: string
+          target_area_id?: string | null
+          target_position?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotions_current_area_id_fkey"
+            columns: ["current_area_id"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotions_target_area_id_fkey"
+            columns: ["target_area_id"]
+            isOneToOne: false
+            referencedRelation: "areas"
             referencedColumns: ["id"]
           },
         ]
@@ -1227,6 +1551,42 @@ export type Database = {
         }
         Relationships: []
       }
+      training_courses: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          duration_hours: number | null
+          id: string
+          name: string
+          provider: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          duration_hours?: number | null
+          id?: string
+          name: string
+          provider?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          duration_hours?: number | null
+          id?: string
+          name?: string
+          provider?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1247,6 +1607,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vacancy_applications: {
+        Row: {
+          applicant_email: string
+          applicant_id: string | null
+          applicant_name: string
+          applicant_phone: string | null
+          cover_letter: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          resume_url: string | null
+          status: string
+          updated_at: string
+          vacancy_id: string
+        }
+        Insert: {
+          applicant_email: string
+          applicant_id?: string | null
+          applicant_name: string
+          applicant_phone?: string | null
+          cover_letter?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          resume_url?: string | null
+          status?: string
+          updated_at?: string
+          vacancy_id: string
+        }
+        Update: {
+          applicant_email?: string
+          applicant_id?: string | null
+          applicant_name?: string
+          applicant_phone?: string | null
+          cover_letter?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          resume_url?: string | null
+          status?: string
+          updated_at?: string
+          vacancy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacancy_applications_vacancy_id_fkey"
+            columns: ["vacancy_id"]
+            isOneToOne: false
+            referencedRelation: "job_vacancies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vacation_balances: {
         Row: {
