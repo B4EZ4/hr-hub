@@ -53,6 +53,9 @@ import RecruitmentCandidatesList from "./pages/recruitment/RecruitmentCandidates
 import RecruitmentInterviewsList from "./pages/recruitment/RecruitmentInterviewsList";
 import CandidateDetail from "./pages/recruitment/CandidateDetail";
 import AttendanceDashboard from "./pages/attendance/AttendanceDashboard";
+import { AreasDashboard } from "./pages/areas/AreasDashboard";
+import { AreasManagement } from "./pages/areas/AreasManagement";
+import { VacanciesManagement } from "./pages/areas/VacanciesManagement";
 
 const queryClient = new QueryClient();
 
@@ -176,6 +179,11 @@ const App = () => (
             <Route path="/seguridad-higiene/inventario/:id" element={<ProtectedRoute><InventoryDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
+            
+            {/* Áreas y Asignaciones */}
+            <Route path="/areas" element={<ProtectedRoute><AreasDashboard /></ProtectedRoute>} />
+            <Route path="/areas/lista" element={<ProtectedRoute><AreasManagement /></ProtectedRoute>} />
+            <Route path="/areas/vacantes" element={<ProtectedRoute><VacanciesManagement /></ProtectedRoute>} />
             
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
