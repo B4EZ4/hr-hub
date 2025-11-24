@@ -56,6 +56,7 @@ import AttendanceDashboard from "./pages/attendance/AttendanceDashboard";
 import { AreasDashboard } from "./pages/areas/AreasDashboard";
 import { AreasManagement } from "./pages/areas/AreasManagement";
 import { VacanciesManagement } from "./pages/areas/VacanciesManagement";
+import BiometricAccessPoint from "./pages/BiometricAccessPoint";
 
 const queryClient = new QueryClient();
 
@@ -184,6 +185,9 @@ const App = () => (
             <Route path="/areas" element={<ProtectedRoute><AreasDashboard /></ProtectedRoute>} />
             <Route path="/areas/lista" element={<ProtectedRoute><AreasManagement /></ProtectedRoute>} />
             <Route path="/areas/vacantes" element={<ProtectedRoute><VacanciesManagement /></ProtectedRoute>} />
+            
+            {/* Punto de Acceso Biométrico - Ruta aislada sin AppLayout */}
+            <Route path="/punto-acceso" element={<BiometricAccessPoint />} />
             
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

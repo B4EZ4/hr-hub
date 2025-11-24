@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Pencil, Mail, Phone, MapPin, Calendar, Briefcase } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
 import { Loader2 } from 'lucide-react';
+import { BiometricStatus } from '@/components/users/BiometricStatus';
 
 export default function UserDetail() {
   const { id } = useParams();
@@ -172,6 +173,11 @@ export default function UserDetail() {
             </CardContent>
           </Card>
         )}
+
+        {/* Estado Biométrico */}
+        <div className="md:col-span-2">
+          <BiometricStatus userId={user.user_id} userEmail={user.email} />
+        </div>
       </div>
     </div>
   );
