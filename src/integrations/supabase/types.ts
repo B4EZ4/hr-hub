@@ -258,11 +258,14 @@ export type Database = {
           category: string
           created_at: string | null
           description: string | null
+          employee_id: string | null
+          estado: Database["public"]["Enums"]["document_status"]
           file_path: string
           file_size: number | null
           id: string
           is_public: boolean | null
           mime_type: string | null
+          motivo_rechazo: string | null
           tags: string[] | null
           title: string
           updated_at: string | null
@@ -273,11 +276,14 @@ export type Database = {
           category: string
           created_at?: string | null
           description?: string | null
+          employee_id?: string | null
+          estado?: Database["public"]["Enums"]["document_status"]
           file_path: string
           file_size?: number | null
           id?: string
           is_public?: boolean | null
           mime_type?: string | null
+          motivo_rechazo?: string | null
           tags?: string[] | null
           title: string
           updated_at?: string | null
@@ -288,18 +294,29 @@ export type Database = {
           category?: string
           created_at?: string | null
           description?: string | null
+          employee_id?: string | null
+          estado?: Database["public"]["Enums"]["document_status"]
           file_path?: string
           file_size?: number | null
           id?: string
           is_public?: boolean | null
           mime_type?: string | null
+          motivo_rechazo?: string | null
           tags?: string[] | null
           title?: string
           updated_at?: string | null
           uploaded_by?: string
           version?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       employee_activities: {
         Row: {
@@ -1831,6 +1848,7 @@ export type Database = {
         | "empleado"
         | "oficial_sh"
         | "auditor"
+      document_status: "pendiente" | "validado" | "rechazado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1966,6 +1984,7 @@ export const Constants = {
         "oficial_sh",
         "auditor",
       ],
+      document_status: ["pendiente", "validado", "rechazado"],
     },
   },
 } as const
