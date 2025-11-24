@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, Eye, Trash2, Upload, History } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, Download, Eye, Trash2, Upload, CheckCircle, XCircle } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
 import { toast } from 'sonner';
 import {
@@ -18,6 +19,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useState } from 'react';
 import { FileUploader } from '@/components/shared/FileUploader';
 
@@ -27,6 +36,8 @@ export default function DocumentDetail() {
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
   const [showUploader, setShowUploader] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   const { data: document, isLoading } = useQuery({
     queryKey: ['document', id],
@@ -35,7 +46,8 @@ export default function DocumentDetail() {
         .from('documents')
         .select(`
           *,
-          uploader:uploaded_by (full_name, email)
+          uploader:uploaded_by (full_name, email),
+          employee:employee_id (full_name, email)
         `)
         .eq('id', id)
         .single();
@@ -45,6 +57,60 @@ export default function DocumentDetail() {
     },
   });
 
+  // Validar documento mutation
+  const validarMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any)
+        .from('documents')
+        .update({ 
+          estado: 'validado',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Documento validado exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['document', id] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error: any) => {
+      toast.error('Error al validar documento', {
+        description: error.message,
+      });
+    },
+  });
+
+  // Rechazar documento mutation
+  const rechazarMutation = useMutation({
+    mutationFn: async (motivo: string) => {
+      const { error } = await (supabase as any)
+        .from('documents')
+        .update({ 
+          estado: 'rechazado',
+          motivo_rechazo: motivo,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Documento rechazado');
+      setShowRejectDialog(false);
+      setMotivoRechazo('');
+      queryClient.invalidateQueries({ queryKey: ['document', id] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error: any) => {
+      toast.error('Error al rechazar documento', {
+        description: error.message,
+      });
+    },
+  });
+
+  // Delete document mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
       // Delete file from storage
@@ -113,6 +179,21 @@ export default function DocumentDetail() {
     );
   }
 
+  const getEstadoBadge = (estado: string) => {
+    const config: Record<string, { variant: 'default' | 'destructive' | 'outline'; icon: any }> = {
+      pendiente: { variant: 'outline', icon: null },
+      validado: { variant: 'default', icon: CheckCircle },
+      rechazado: { variant: 'destructive', icon: XCircle },
+    };
+    const { variant, icon: Icon } = config[estado] || config.pendiente;
+    return (
+      <Badge variant={variant} className="text-sm px-3 py-1">
+        {Icon && <Icon className="mr-1 h-3 w-3" />}
+        {estado?.toUpperCase() || 'PENDIENTE'}
+      </Badge>
+    );
+  };
+
   const handleDownload = () => {
     const { data } = supabase.storage.from('documents').getPublicUrl(document.file_path);
     window.open(data.publicUrl, '_blank');
@@ -131,15 +212,16 @@ export default function DocumentDetail() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{document.title}</h1>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl font-bold tracking-tight">{document.title}</h1>
+              {getEstadoBadge(document.estado)}
+            </div>
             <p className="text-muted-foreground">Versión {document.version}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={document.is_public ? 'success' : 'default'}>
-            {document.is_public ? 'Público' : 'Privado'}
-          </Badge>
-        </div>
+        <Badge variant={document.is_public ? 'default' : 'outline'}>
+          {document.is_public ? 'Público' : 'Privado'}
+        </Badge>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -150,12 +232,29 @@ export default function DocumentDetail() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Categoría</p>
-              <p className="font-medium">{document.category}</p>
+              <p className="font-medium capitalize">{document.category}</p>
             </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Estado</p>
+              <p className="font-medium capitalize">{document.estado || 'pendiente'}</p>
+            </div>
+            {document.employee && (
+              <div>
+                <p className="text-sm text-muted-foreground">Empleado</p>
+                <p className="font-medium">{document.employee.full_name}</p>
+                <p className="text-xs text-muted-foreground">{document.employee.email}</p>
+              </div>
+            )}
             {document.description && (
               <div>
                 <p className="text-sm text-muted-foreground">Descripción</p>
                 <p className="font-medium">{document.description}</p>
+              </div>
+            )}
+            {document.estado === 'rechazado' && document.motivo_rechazo && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                <p className="text-sm font-medium text-destructive mb-1">Motivo de rechazo</p>
+                <p className="text-sm">{document.motivo_rechazo}</p>
               </div>
             )}
             {document.tags && document.tags.length > 0 && (
@@ -215,11 +314,33 @@ export default function DocumentDetail() {
               <Download className="mr-2 h-4 w-4" />
               Descargar
             </Button>
+
+            {canManageUsers && document.estado === 'pendiente' && (
+              <>
+                <Button 
+                  onClick={() => validarMutation.mutate()} 
+                  variant="default"
+                  disabled={validarMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Validar
+                </Button>
+                <Button 
+                  onClick={() => setShowRejectDialog(true)} 
+                  variant="destructive"
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Rechazar
+                </Button>
+              </>
+            )}
+
             {canManageUsers && (
               <>
                 <Button onClick={() => setShowUploader(!showUploader)} variant="outline">
                   <Upload className="mr-2 h-4 w-4" />
-                  Subir Nueva Versión
+                  Nueva Versión
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -264,6 +385,38 @@ export default function DocumentDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reject document dialog */}
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rechazar Documento</DialogTitle>
+            <DialogDescription>
+              Proporciona un motivo para rechazar este documento. El empleado podrá ver este motivo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Escribe el motivo del rechazo..."
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => rechazarMutation.mutate(motivoRechazo)}
+              disabled={!motivoRechazo.trim() || rechazarMutation.isPending}
+            >
+              Rechazar Documento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

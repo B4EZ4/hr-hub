@@ -20,7 +20,8 @@ import { useState, useEffect } from 'react';
 const formSchema = z.object({
   title: z.string().min(1, 'El título es requerido').max(200, 'Máximo 200 caracteres'),
   description: z.string().max(1000, 'Máximo 1000 caracteres').optional(),
-  category: z.enum(['contrato', 'politica', 'procedimiento', 'manual', 'certificado', 'otro']),
+  category: z.enum(['contrato', 'identificacion', 'certificado', 'nomina', 'otro']),
+  employee_id: z.string().min(1, 'Selecciona un empleado'),
   is_public: z.boolean(),
   tags: z.string().max(500, 'Máximo 500 caracteres').optional(),
 });
@@ -34,6 +35,19 @@ export default function DocumentForm() {
   const { user } = useAuth();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const isEditing = !!id;
+
+  // Cargar lista de empleados
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .order('full_name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: document, isLoading: loadingDocument } = useQuery({
     queryKey: ['document', id],
@@ -55,6 +69,7 @@ export default function DocumentForm() {
       title: '',
       description: '',
       category: 'otro',
+      employee_id: '',
       is_public: false,
       tags: '',
     },
@@ -66,6 +81,7 @@ export default function DocumentForm() {
         title: document.title,
         description: document.description || '',
         category: document.category,
+        employee_id: document.employee_id || '',
         is_public: document.is_public,
         tags: document.tags?.join(', ') || '',
       });
@@ -87,26 +103,44 @@ export default function DocumentForm() {
         title: data.title,
         description: data.description || null,
         category: data.category,
+        employee_id: data.employee_id,
         is_public: data.is_public,
         tags,
         ...(uploadedFile && uploadedFile !== document?.file_path && { 
           file_path: uploadedFile,
           version: isEditing ? (document?.version || 1) + 1 : 1 
         }),
-        ...(!isEditing && { uploaded_by: user!.id }),
+        ...(!isEditing && { 
+          uploaded_by: user!.id,
+          estado: 'pendiente' // Estado inicial
+        }),
       };
 
-      if (isEditing) {
-        const { error } = await (supabase as any)
-          .from('documents')
-          .update(payload)
-          .eq('id', id);
-        if (error) throw error;
-      } else {
-        const { error } = await (supabase as any)
-          .from('documents')
-          .insert(payload);
-        if (error) throw error;
+      try {
+        if (isEditing) {
+          const { error } = await (supabase as any)
+            .from('documents')
+            .update(payload)
+            .eq('id', id);
+          if (error) throw error;
+        } else {
+          // Flujo crítico: Storage -> BD con compensación
+          const { error } = await (supabase as any)
+            .from('documents')
+            .insert(payload);
+          
+          if (error) {
+            // COMPENSACIÓN: Si falla la BD, borrar el archivo de Storage
+            if (uploadedFile) {
+              console.error('Error en BD, borrando archivo de Storage:', uploadedFile);
+              await supabase.storage.from('documents').remove([uploadedFile]);
+            }
+            throw error;
+          }
+        }
+      } catch (error) {
+        // Propagar el error para que onError lo maneje
+        throw error;
       }
     },
     onSuccess: () => {
@@ -154,7 +188,7 @@ export default function DocumentForm() {
         <CardHeader>
           <CardTitle>Información del Documento</CardTitle>
           <CardDescription>
-            Completa los campos con los datos del documento
+            Completa los campos con los datos del documento. El estado inicial será "Pendiente" hasta su validación.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,7 +228,7 @@ export default function DocumentForm() {
                   name="category"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Categoría</FormLabel>
+                      <FormLabel>Categoría *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -203,10 +237,9 @@ export default function DocumentForm() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="contrato">Contrato</SelectItem>
-                          <SelectItem value="politica">Política</SelectItem>
-                          <SelectItem value="procedimiento">Procedimiento</SelectItem>
-                          <SelectItem value="manual">Manual</SelectItem>
+                          <SelectItem value="identificacion">Identificación</SelectItem>
                           <SelectItem value="certificado">Certificado</SelectItem>
+                          <SelectItem value="nomina">Nómina</SelectItem>
                           <SelectItem value="otro">Otro</SelectItem>
                         </SelectContent>
                       </Select>
@@ -217,22 +250,50 @@ export default function DocumentForm() {
 
                 <FormField
                   control={form.control}
-                  name="is_public"
+                  name="employee_id"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">Público</FormLabel>
-                        <div className="text-sm text-muted-foreground">
-                          Visible para todos los usuarios
-                        </div>
-                      </div>
-                      <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
+                    <FormItem>
+                      <FormLabel>Empleado *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un empleado" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {employees.map((emp: any) => (
+                            <SelectItem key={emp.user_id} value={emp.user_id}>
+                              {emp.full_name} ({emp.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Empleado al que pertenece este documento
+                      </FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="is_public"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Documento Público</FormLabel>
+                      <div className="text-sm text-muted-foreground">
+                        Visible para todos los usuarios una vez validado
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -250,19 +311,42 @@ export default function DocumentForm() {
 
               <div>
                 <FormLabel>Archivo * {isEditing && '(opcional)'}</FormLabel>
-                <FileUploader
-                  bucket="documents"
-                  path="general"
-                  onUploadComplete={(path) => {
-                    setUploadedFile(path);
-                    toast.success('Archivo subido correctamente');
-                  }}
-                />
+                <div className="mt-2">
+                  <FileUploader
+                    bucket="documents"
+                    path="general"
+                    onUploadComplete={(path) => {
+                      setUploadedFile(path);
+                      toast.success('Archivo subido correctamente');
+                    }}
+                    onUploadError={(error) => {
+                      toast.error('Error al subir archivo', {
+                        description: error,
+                      });
+                    }}
+                  />
+                </div>
+                {!uploadedFile && !isEditing && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    El archivo debe subirse antes de guardar el documento
+                  </p>
+                )}
               </div>
 
-              <div className="flex gap-4">
-                <Button type="submit" disabled={mutation.isPending || (!uploadedFile && !isEditing)}>
-                  {mutation.isPending ? 'Guardando...' : isEditing ? 'Actualizar Documento' : 'Subir Documento'}
+              <div className="flex gap-4 pt-4 border-t">
+                <Button 
+                  type="submit" 
+                  disabled={mutation.isPending || (!uploadedFile && !isEditing)}
+                  className="min-w-[200px]"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    isEditing ? 'Actualizar Documento' : 'Subir Documento'
+                  )}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => navigate('/documentos')}>
                   Cancelar

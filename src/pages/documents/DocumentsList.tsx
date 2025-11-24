@@ -4,29 +4,59 @@ import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, FileText, Download, Eye } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, FileText, Download, Eye, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRoles } from '@/hooks/useRoles';
+import { useState } from 'react';
+
+type EstadoFilter = 'todos' | 'pendiente' | 'validado' | 'rechazado';
 
 export default function DocumentsList() {
   const { canManageUsers, roles } = useRoles();
   const navigate = useNavigate();
+  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>('todos');
+  const [categoriaFilter, setCategoriaFilter] = useState('todos');
 
   const { data: documents = [], isLoading } = useQuery({
-    queryKey: ['documents'],
+    queryKey: ['documents', estadoFilter, categoriaFilter],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from('documents')
         .select(`
           *,
-          uploader:uploaded_by (full_name)
+          uploader:uploaded_by (full_name),
+          employee:employee_id (full_name)
         `)
         .order('created_at', { ascending: false });
 
+      if (estadoFilter !== 'todos') {
+        query = query.eq('estado', estadoFilter);
+      }
+
+      if (categoriaFilter !== 'todos') {
+        query = query.eq('category', categoriaFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
   });
+
+  const getEstadoBadge = (estado: string) => {
+    const variants: Record<string, 'default' | 'destructive' | 'outline'> = {
+      pendiente: 'outline',
+      validado: 'default',
+      rechazado: 'destructive',
+    };
+    return (
+      <Badge variant={variants[estado] || 'default'}>
+        {estado.toUpperCase()}
+      </Badge>
+    );
+  };
 
   const columns = [
     {
@@ -38,8 +68,14 @@ export default function DocumentsList() {
       accessorKey: 'category',
     },
     {
-      header: 'Versión',
-      accessorKey: 'version',
+      header: 'Empleado',
+      accessorKey: 'employee',
+      cell: (value: any) => value?.full_name || '-',
+    },
+    {
+      header: 'Estado',
+      accessorKey: 'estado',
+      cell: (value: string) => getEstadoBadge(value),
     },
     {
       header: 'Subido por',
@@ -50,15 +86,6 @@ export default function DocumentsList() {
       header: 'Fecha',
       accessorKey: 'created_at',
       cell: (value: string) => new Date(value).toLocaleDateString('es-ES'),
-    },
-    {
-      header: 'Acceso',
-      accessorKey: 'is_public',
-      cell: (value: boolean) => (
-        <Badge variant={value ? 'success' : 'default'}>
-          {value ? 'Público' : 'Privado'}
-        </Badge>
-      ),
     },
   ];
 
@@ -88,6 +115,42 @@ export default function DocumentsList() {
           );
         })()}
       </div>
+
+      {/* Filtros */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filtros:</span>
+            </div>
+            <Select value={estadoFilter} onValueChange={(value: EstadoFilter) => setEstadoFilter(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="validado">Validado</SelectItem>
+                <SelectItem value="rechazado">Rechazado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas las categorías</SelectItem>
+                <SelectItem value="contrato">Contrato</SelectItem>
+                <SelectItem value="identificacion">Identificación</SelectItem>
+                <SelectItem value="certificado">Certificado</SelectItem>
+                <SelectItem value="nomina">Nómina</SelectItem>
+                <SelectItem value="otro">Otro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {documents.length === 0 && !isLoading && (
         <Card>
