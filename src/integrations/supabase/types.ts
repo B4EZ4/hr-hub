@@ -139,6 +139,69 @@ export type Database = {
         }
         Relationships: []
       }
+      biometric_events: {
+        Row: {
+          created_at: string
+          device_id: string
+          event_type: string
+          hash: string | null
+          id: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          event_type: string
+          hash?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          event_type?: string
+          hash?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      biometric_templates: {
+        Row: {
+          created_at: string
+          device_id: string
+          encrypted_template: string
+          id: string
+          method: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          encrypted_template: string
+          id?: string
+          method?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          encrypted_template?: string
+          id?: string
+          method?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       contracts: {
         Row: {
           contract_number: string
@@ -1741,7 +1804,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      user_biometric_status: {
+        Row: {
+          active_templates: number | null
+          has_active_template: boolean | null
+          last_enrollment: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
