@@ -45,16 +45,36 @@ export default function SectorsList() {
   const { data: sectors = [], isLoading } = useQuery({
     queryKey: ['sh-sectors'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: sectorsData, error } = await (supabase as any)
         .from('sh_sectors')
-        .select(`
-          *,
-          responsible:responsible_id (full_name)
-        `)
+        .select('*')
         .order('name');
 
       if (error) throw error;
-      return data || [];
+
+      // Obtener responsables
+      const responsibleIds = sectorsData
+        ?.map((s: any) => s.responsible_id)
+        .filter(Boolean) || [];
+
+      let responsiblesMap: Record<string, any> = {};
+      
+      if (responsibleIds.length > 0) {
+        const { data: responsibles } = await (supabase as any)
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', responsibleIds);
+
+        responsiblesMap = (responsibles || []).reduce((acc: any, r: any) => {
+          acc[r.user_id] = r;
+          return acc;
+        }, {});
+      }
+
+      return (sectorsData || []).map((sector: any) => ({
+        ...sector,
+        responsible: sector.responsible_id ? responsiblesMap[sector.responsible_id] : null,
+      }));
     },
   });
 

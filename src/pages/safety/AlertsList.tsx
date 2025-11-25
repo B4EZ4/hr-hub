@@ -18,19 +18,35 @@ export default function AlertsList() {
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['inventory-alerts'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: alertsData, error } = await supabase
         .from('inventory_alerts')
-        .select(`
-          *,
-          item:item_id (id, name, category, stock_quantity, min_stock, location),
-          resolver:resolved_by (full_name)
-        `)
+        .select('*')
         .eq('is_resolved', false)
         .order('severity', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+
+      // Obtener items relacionados
+      const itemIds = alertsData?.map(a => a.item_id).filter(Boolean) || [];
+      let itemsMap: Record<string, any> = {};
+      
+      if (itemIds.length > 0) {
+        const { data: items } = await supabase
+          .from('inventory_items')
+          .select('id, name, category, stock_quantity, min_stock, location')
+          .in('id', itemIds);
+
+        itemsMap = (items || []).reduce((acc: any, item: any) => {
+          acc[item.id] = item;
+          return acc;
+        }, {});
+      }
+
+      return (alertsData || []).map(alert => ({
+        ...alert,
+        item: alert.item_id ? itemsMap[alert.item_id] : null,
+      }));
     },
   });
 

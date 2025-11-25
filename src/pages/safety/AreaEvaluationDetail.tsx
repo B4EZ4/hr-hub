@@ -15,18 +15,36 @@ export default function AreaEvaluationDetail() {
   const { data: evaluation, isLoading } = useQuery({
     queryKey: ['area-evaluation-detail', id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: evalData, error } = await (supabase as any)
         .from('sh_area_evaluations')
-        .select(`
-          *,
-          sector:sector_id (name, description, risk_level),
-          evaluator:evaluated_by (full_name, email)
-        `)
+        .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data;
+      if (!evalData) return null;
+
+      // Obtener sector
+      if (evalData.sector_id) {
+        const { data: sector } = await (supabase as any)
+          .from('sh_sectors')
+          .select('name, description, risk_level')
+          .eq('id', evalData.sector_id)
+          .maybeSingle();
+        evalData.sector = sector;
+      }
+
+      // Obtener evaluador
+      if (evalData.evaluated_by) {
+        const { data: evaluator } = await (supabase as any)
+          .from('profiles')
+          .select('full_name, email')
+          .eq('user_id', evalData.evaluated_by)
+          .maybeSingle();
+        evalData.evaluator = evaluator;
+      }
+
+      return evalData;
     },
   });
 

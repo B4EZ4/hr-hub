@@ -15,18 +15,36 @@ export default function MaintenanceDetail() {
   const { data: maintenance, isLoading } = useQuery({
     queryKey: ['maintenance-detail', id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: mainData, error } = await (supabase as any)
         .from('inventory_maintenance')
-        .select(`
-          *,
-          item:item_id (id, name, category, location),
-          performer:performed_by (full_name, email)
-        `)
+        .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data;
+      if (!mainData) return null;
+
+      // Obtener ítem del inventario
+      if (mainData.item_id) {
+        const { data: item } = await (supabase as any)
+          .from('inventory_items')
+          .select('id, name, category, location')
+          .eq('id', mainData.item_id)
+          .maybeSingle();
+        mainData.item = item;
+      }
+
+      // Obtener quien realizó el mantenimiento
+      if (mainData.performed_by) {
+        const { data: performer } = await (supabase as any)
+          .from('profiles')
+          .select('full_name, email')
+          .eq('user_id', mainData.performed_by)
+          .maybeSingle();
+        mainData.performer = performer;
+      }
+
+      return mainData;
     },
   });
 
