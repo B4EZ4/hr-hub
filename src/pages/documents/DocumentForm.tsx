@@ -3,8 +3,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSessionToken } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,12 @@ import { toast } from 'sonner';
 import { FileUploader } from '@/components/shared/FileUploader';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+type Employee = {
+  user_id: string;
+  full_name: string;
+  email: string;
+};
 
 const formSchema = z.object({
   title: z.string().min(1, 'El título es requerido').max(200, 'Máximo 200 caracteres'),
@@ -34,15 +41,49 @@ export default function DocumentForm() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [uploadInProgress, setUploadInProgress] = useState(false);
   const isEditing = !!id;
 
   // Cargar lista de empleados
-  const { data: employees = [] } = useQuery({
+  const { data: employees = [] } = useQuery<Employee[]>({
     queryKey: ['employees'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      // Obtener empleados a partir de contratos activos
+      const { data: contracts, error: contractsErr } = await supabase
+        .from('contracts')
+        .select('user_id')
+        .eq('status', 'activo');
+      if (contractsErr) throw contractsErr;
+
+      const contractsData = (contracts || []) as { user_id?: string }[];
+      const userIds = contractsData.map((c) => c.user_id).filter(Boolean) as string[];
+
+      if (userIds.length > 0) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds)
+          .eq('status', 'activo')
+          .order('full_name');
+        if (error) throw error;
+        return data || [];
+      }
+
+      // Fallback: si no hay contracts activos (entorno vacío), usar candidates contratados
+      const { data: candidates, error: candErr } = await supabase
+        .from('recruitment_candidates')
+        .select('email')
+        .eq('status', 'contratado');
+      if (candErr) throw candErr;
+
+      const emails = (candidates || []).map((c: { email?: string }) => c.email).filter(Boolean) as string[];
+      if (emails.length === 0) return [];
+
+      const { data, error } = await supabase
         .from('profiles')
         .select('user_id, full_name, email')
+        .in('email', emails)
+        .eq('status', 'activo')
         .order('full_name');
       if (error) throw error;
       return data || [];
@@ -52,7 +93,7 @@ export default function DocumentForm() {
   const { data: document, isLoading: loadingDocument } = useQuery({
     queryKey: ['document', id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('documents')
         .select('*')
         .eq('id', id)
@@ -80,7 +121,7 @@ export default function DocumentForm() {
       form.reset({
         title: document.title,
         description: document.description || '',
-        category: document.category,
+        category: (document.category as FormData['category']) || 'otro',
         employee_id: document.employee_id || '',
         is_public: document.is_public,
         tags: document.tags?.join(', ') || '',
@@ -95,52 +136,87 @@ export default function DocumentForm() {
         throw new Error('Debe subir un archivo');
       }
 
+      // Asegurar que el usuario esté autenticado antes de intentar insertar
+      if (!user || !user.id) {
+        throw new Error('Usuario no autenticado. Inicia sesión antes de subir documentos.');
+      }
+
       const tags = data.tags
         ? data.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
         : null;
 
-      const payload = {
-        title: data.title,
-        description: data.description || null,
-        category: data.category,
-        employee_id: data.employee_id,
-        is_public: data.is_public,
-        tags,
-        ...(uploadedFile && uploadedFile !== document?.file_path && { 
-          file_path: uploadedFile,
-          version: isEditing ? (document?.version || 1) + 1 : 1 
-        }),
-        ...(!isEditing && { 
-          uploaded_by: user!.id,
-          estado: 'pendiente' // Estado inicial
-        }),
+      // Tipos explícitos para cumplir con las firmas de Supabase
+      type DocumentInsert = {
+        title: string;
+        description?: string | null;
+        category: FormData['category'];
+        employee_id: string;
+        is_public: boolean;
+        tags?: string[] | null;
+        file_path: string;
+        version?: number;
+        uploaded_by: string;
+        estado: 'pendiente' | 'validado' | 'rechazado';
       };
 
-      try {
-        if (isEditing) {
-          const { error } = await (supabase as any)
-            .from('documents')
-            .update(payload)
-            .eq('id', id);
-          if (error) throw error;
-        } else {
-          // Flujo crítico: Storage -> BD con compensación
-          const { error } = await (supabase as any)
-            .from('documents')
-            .insert(payload);
-          
-          if (error) {
-            // COMPENSACIÓN: Si falla la BD, borrar el archivo de Storage
-            if (uploadedFile) {
-              console.error('Error en BD, borrando archivo de Storage:', uploadedFile);
-              await supabase.storage.from('documents').remove([uploadedFile]);
-            }
-            throw error;
-          }
+      type DocumentUpdate = Partial<Omit<DocumentInsert, 'uploaded_by' | 'estado' | 'file_path'>> &
+        Partial<Pick<DocumentInsert, 'file_path' | 'version'>> & { descripcion?: string | null };
+
+      const tagsArray = tags ?? null;
+
+      if (isEditing) {
+        const updatePayload: DocumentUpdate = {
+          title: data.title,
+          description: data.description || null,
+          category: data.category,
+          employee_id: data.employee_id,
+          is_public: data.is_public,
+          tags: tagsArray,
+        };
+
+        if (uploadedFile && uploadedFile !== document?.file_path) {
+          updatePayload.file_path = uploadedFile;
+          updatePayload.version = (document?.version || 1) + 1;
         }
-      } catch (error) {
-        // Propagar el error para que onError lo maneje
-        throw error;
+
+        const { error } = await supabase.from('documents').update(updatePayload).eq('id', id);
+        if (error) throw error;
+      } else {
+        // Flujo crítico: Storage -> BD con compensación
+        const insertPayload: DocumentInsert = {
+          title: data.title,
+          description: data.description || null,
+          category: data.category,
+          employee_id: data.employee_id,
+          is_public: data.is_public,
+          tags: tagsArray,
+          file_path: uploadedFile!,
+          version: 1,
+          uploaded_by: user!.id,
+          estado: 'pendiente',
+        };
+
+        // Debug: mostrar user.id y payload para comprobar RLS
+        try {
+          console.log('Debug: document insert attempt', {
+            userId: user?.id ?? null,
+            hasSessionToken: Boolean(getSessionToken()),
+            insertPayload,
+          });
+        } catch (e) {
+          /* ignore logging errors */
+        }
+
+        const { error } = await supabase.from('documents').insert(insertPayload);
+
+        if (error) {
+          // COMPENSACIÓN: Si falla la BD, borrar el archivo de Storage
+          if (uploadedFile) {
+            console.error('Error en BD, borrando archivo de Storage:', uploadedFile);
+            await supabase.storage.from('documents').remove([uploadedFile]);
+          }
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -151,8 +227,16 @@ export default function DocumentForm() {
       toast.success(isEditing ? 'Documento actualizado' : 'Documento cargado correctamente');
       navigate('/documentos');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Error al guardar el documento');
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      // Detectar error RLS común y ofrecer pasos para resolverlo
+      if (message.toLowerCase().includes('new row violates row-level security policy') || message.toLowerCase().includes('row-level security')) {
+        toast.error('Error de permisos: la política RLS impide crear el documento. Asegúrate de estar autenticado y que tu usuario coincida con el campo "uploaded_by". Si esto ocurre en desarrollo, puedes crear el documento desde el servidor con la service_role key.');
+        console.error('RLS insert error:', err);
+        return;
+      }
+
+      toast.error(message || 'Error al guardar el documento');
     },
   });
 
@@ -261,7 +345,7 @@ export default function DocumentForm() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {employees.map((emp: any) => (
+                          {employees.map((emp) => (
                             <SelectItem key={emp.user_id} value={emp.user_id}>
                               {emp.full_name} ({emp.email})
                             </SelectItem>
@@ -311,7 +395,7 @@ export default function DocumentForm() {
 
               <div>
                 <FormLabel>Archivo * {isEditing && '(opcional)'}</FormLabel>
-                <div className="mt-2">
+                <div className="mt-2 mb-6">
                   <FileUploader
                     bucket="documents"
                     path="general"
@@ -324,6 +408,7 @@ export default function DocumentForm() {
                         description: error,
                       });
                     }}
+                    onUploadingChange={(v) => setUploadInProgress(v)}
                   />
                 </div>
                 {!uploadedFile && !isEditing && (
@@ -333,13 +418,18 @@ export default function DocumentForm() {
                 )}
               </div>
 
-              <div className="flex gap-4 pt-4 border-t">
+              <div className="flex gap-4 pt-4 border-t relative z-[1]">
                 <Button 
                   type="submit" 
-                  disabled={mutation.isPending || (!uploadedFile && !isEditing)}
-                  className="min-w-[200px]"
+                  disabled={mutation.isPending || uploadInProgress || (!uploadedFile && !isEditing)}
+                  className="relative z-[1] min-w-[200px]"
                 >
-                  {mutation.isPending ? (
+                  {uploadInProgress ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Subiendo archivo...
+                    </>
+                  ) : mutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Guardando...
@@ -348,7 +438,7 @@ export default function DocumentForm() {
                     isEditing ? 'Actualizar Documento' : 'Subir Documento'
                   )}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => navigate('/documentos')}>
+                <Button type="button" variant="outline" onClick={() => navigate('/documentos')} className="relative z-[1]">
                   Cancelar
                 </Button>
               </div>

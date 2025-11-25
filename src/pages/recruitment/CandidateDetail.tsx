@@ -419,20 +419,22 @@ export default function CandidateDetail() {
 
       if (applicationError) throw applicationError;
 
-      // Create contract record
+      // Create contract record (match DB schema: requires contract_number and `type`)
+      const contractNumber = `CNT-${Date.now().toString().slice(-6)}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
+
       const { error: contractError } = await (supabase as any)
         .from('contracts')
         .insert({
           user_id: userId,
-          profile_id: profileId,
+          contract_number: contractNumber,
+          type: 'indefinido',
           start_date: hireDate,
           status: 'activo',
-          department: position?.department, // Keep for backward compatibility
-          position: position?.title,       // Keep for backward compatibility
-          area_id: areaId,
-          position_id: positionId,
-          salary: application.salary_expectation,
-          contract_type: 'indefinido' // Default to indefinite
+          department: position?.department || null,
+          position: position?.title || 'Sin especificar',
+          salary: application.salary_expectation || null,
         });
 
       if (contractError) {
