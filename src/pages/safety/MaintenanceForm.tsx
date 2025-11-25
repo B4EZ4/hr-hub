@@ -124,6 +124,17 @@ export default function MaintenanceForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Get current user's profile user_id
+      const { data: profile } = await (supabase as any)
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!profile) {
+        throw new Error('No se encontró el perfil del usuario');
+      }
+
       // Construir observaciones con formato detallado
       let fullObservations = '';
       
@@ -154,7 +165,7 @@ export default function MaintenanceForm() {
         description: `UBICACIÓN: ${data.location}\n\n${data.description}`,
         observations: fullObservations.trim() || null,
         cost: data.cost ? parseFloat(data.cost) : null,
-        performed_by: user?.id,
+        performed_by: profile.user_id,
         status: 'pendiente',
       };
 
