@@ -79,22 +79,16 @@ export default function SectorForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const payload = {
-        ...data,
-        description: data.description || null,
-        responsible_id: data.responsible_id || null,
-      };
-
       if (isEditing) {
         const { error } = await (supabase as any)
           .from('sh_sectors')
-          .update(payload)
+          .update(data)
           .eq('id', id);
         if (error) throw error;
       } else {
         const { error } = await (supabase as any)
           .from('sh_sectors')
-          .insert(payload);
+          .insert(data);
         if (error) throw error;
       }
     },
@@ -109,7 +103,12 @@ export default function SectorForm() {
   });
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate(data);
+    const cleanData = {
+      ...data,
+      responsible_id: data.responsible_id || null,
+      description: data.description || null,
+    };
+    mutation.mutate(cleanData);
   };
 
   return (
@@ -171,7 +170,7 @@ export default function SectorForm() {
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent className="bg-popover">
                           <SelectItem value="bajo">Bajo</SelectItem>
                           <SelectItem value="medio">Medio</SelectItem>
                           <SelectItem value="alto">Alto</SelectItem>
@@ -189,17 +188,17 @@ export default function SectorForm() {
                     <FormItem>
                       <FormLabel>Responsable (Opcional)</FormLabel>
                       <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value || ""}
+                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)} 
+                        value={field.value || "none"}
                         disabled={isLoadingUsers}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder={isLoadingUsers ? "Cargando..." : "Seleccione un responsable"} />
+                            <SelectValue placeholder={isLoadingUsers ? "Cargando..." : "Sin asignar"} />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="">Sin asignar</SelectItem>
+                        <SelectContent className="bg-popover">
+                          <SelectItem value="none">Sin asignar</SelectItem>
                           {Array.isArray(users) && users.filter((u: any) => u?.user_id && u?.full_name).map((user: any) => (
                             <SelectItem key={user.user_id} value={user.user_id}>
                               {user.full_name}
