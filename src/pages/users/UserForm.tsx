@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { getSessionToken } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,7 +50,7 @@ export default function UserForm() {
       if (!id) return null;
       
       // Obtener datos del usuario
-      const { data: userData, error: userError } = await (supabase as any)
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', id)
@@ -59,7 +59,7 @@ export default function UserForm() {
       if (userError) throw userError;
 
       // Obtener rol del usuario
-      const { data: roleData, error: roleError } = await (supabase as any)
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', id)
@@ -95,7 +95,7 @@ export default function UserForm() {
         email: user.email || '',
         username: user.username || '',
         phone: user.phone || '',
-        status: user.status || 'activo',
+        status: (user.status || 'activo') as 'activo' | 'inactivo' | 'suspendido',
         role: 'admin_rrhh',
         password: '',
       });
@@ -106,13 +106,13 @@ export default function UserForm() {
     mutationFn: async (data: UserFormData) => {
       if (isEditMode) {
         // Actualizar usuario en la tabla users
-        const { error: userError } = await (supabase as any)
+        const { error: userError } = await supabase
           .from('users')
           .update({
             full_name: data.full_name,
             email: data.email,
             phone: data.phone,
-            status: data.status,
+            status: data.status as 'activo' | 'inactivo' | 'suspendido',
           })
           .eq('id', id);
 

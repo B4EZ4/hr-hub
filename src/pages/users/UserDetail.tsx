@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ export default function UserDetail() {
     queryKey: ['user', id],
     queryFn: async () => {
       // Obtener datos del usuario
-      const { data: userData, error: userError } = await (supabase as any)
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', id)
@@ -27,7 +27,7 @@ export default function UserDetail() {
       if (userError) throw userError;
 
       // Obtener rol del usuario
-      const { data: roleData, error: roleError } = await (supabase as any)
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', id)
