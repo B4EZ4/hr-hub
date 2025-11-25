@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Shield, ClipboardList, Package, CheckSquare, AlertTriangle, Wrench, TrendingUp, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { useRoles } from '@/hooks/useRoles';
 
 export default function SafetyHome() {
