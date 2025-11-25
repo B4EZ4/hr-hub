@@ -513,7 +513,7 @@ TABLA: inventory_assignments
 CREATE TABLE public.inventory_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
-    user_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
     quantity INTEGER NOT NULL,
     assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
     return_date DATE,
@@ -552,8 +552,8 @@ CREATE TABLE public.inventory_movements (
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
     movement_type TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    user_id UUID,
-    authorized_by UUID,
+    user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
+    authorized_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
     assignment_id UUID REFERENCES public.inventory_assignments(id),
     movement_date TIMESTAMPTZ DEFAULT now(),
     observations TEXT,
@@ -597,7 +597,7 @@ CREATE TABLE public.inventory_maintenance (
     status TEXT DEFAULT 'pendiente',
     description TEXT,
     observations TEXT,
-    performed_by UUID,
+    performed_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
     cost NUMERIC,
     file_paths TEXT[],
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -637,7 +637,7 @@ CREATE TABLE public.inventory_alerts (
     description TEXT,
     is_resolved BOOLEAN DEFAULT false,
     resolved_at TIMESTAMPTZ,
-    resolved_by UUID,
+    resolved_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

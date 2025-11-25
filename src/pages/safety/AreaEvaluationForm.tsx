@@ -75,11 +75,22 @@ export default function AreaEvaluationForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Get current user's profile to use user_id
+      const { data: profile } = await (supabase as any)
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!profile) {
+        throw new Error('No se encontró el perfil del usuario');
+      }
+
       const { error } = await (supabase as any)
         .from('sh_area_evaluations')
         .insert({
           ...data,
-          evaluated_by: user?.id,
+          evaluated_by: profile.user_id,
           file_paths: uploadedFiles.length > 0 ? uploadedFiles : null,
         });
       if (error) throw error;
