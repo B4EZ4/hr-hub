@@ -267,7 +267,7 @@ export default function MaintenanceDetail() {
           Volver a Mantenimientos
         </Button>
         {maintenance.item?.id && (
-          <Button variant="outline" onClick={() => navigate(`/inventario/${maintenance.item.id}`)}>
+          <Button variant="outline" onClick={() => navigate(`/seguridad-higiene/inventario/${maintenance.item.id}`)}>
             Ver Ítem de Inventario
           </Button>
         )}

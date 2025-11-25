@@ -493,6 +493,18 @@ CREATE POLICY "Everyone can view inventory"
 ON public.inventory_items FOR SELECT
 USING (true);
 
+CREATE POLICY "Anyone can insert inventory items"
+ON public.inventory_items FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update inventory items"
+ON public.inventory_items FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete inventory items"
+ON public.inventory_items FOR DELETE
+USING (true);
+
 ================================================================================
 TABLA: inventory_assignments
 ================================================================================
@@ -517,6 +529,295 @@ ALTER TABLE public.inventory_assignments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their assignments"
 ON public.inventory_assignments FOR SELECT
 USING (auth.uid() = user_id);
+
+CREATE POLICY "Anyone can insert assignments"
+ON public.inventory_assignments FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update assignments"
+ON public.inventory_assignments FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete assignments"
+ON public.inventory_assignments FOR DELETE
+USING (true);
+
+================================================================================
+TABLA: inventory_movements
+================================================================================
+-- Movimientos de inventario (entradas, salidas, ajustes)
+
+CREATE TABLE public.inventory_movements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    movement_type TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    user_id UUID,
+    authorized_by UUID,
+    assignment_id UUID REFERENCES public.inventory_assignments(id),
+    movement_date TIMESTAMPTZ DEFAULT now(),
+    observations TEXT,
+    condition_before TEXT,
+    condition_after TEXT,
+    damage_description TEXT,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_movements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view inventory movements"
+ON public.inventory_movements FOR SELECT
+USING (true);
+
+CREATE POLICY "Anyone can insert movements"
+ON public.inventory_movements FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update movements"
+ON public.inventory_movements FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete movements"
+ON public.inventory_movements FOR DELETE
+USING (true);
+
+================================================================================
+TABLA: inventory_maintenance
+================================================================================
+-- Mantenimientos de equipos e ítems
+
+CREATE TABLE public.inventory_maintenance (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    maintenance_type TEXT NOT NULL,
+    scheduled_date DATE,
+    completed_date DATE,
+    status TEXT DEFAULT 'pendiente',
+    description TEXT,
+    observations TEXT,
+    performed_by UUID,
+    cost NUMERIC,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_maintenance ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view maintenance records"
+ON public.inventory_maintenance FOR SELECT
+USING (true);
+
+CREATE POLICY "Anyone can insert maintenance"
+ON public.inventory_maintenance FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update maintenance"
+ON public.inventory_maintenance FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete maintenance"
+ON public.inventory_maintenance FOR DELETE
+USING (true);
+
+================================================================================
+TABLA: inventory_alerts
+================================================================================
+-- Alertas de inventario (stock bajo, mantenimientos, etc.)
+
+CREATE TABLE public.inventory_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    alert_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    is_resolved BOOLEAN DEFAULT false,
+    resolved_at TIMESTAMPTZ,
+    resolved_by UUID,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_alerts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view alerts"
+ON public.inventory_alerts FOR SELECT
+USING (true);
+
+CREATE POLICY "System can insert alerts"
+ON public.inventory_alerts FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update alerts"
+ON public.inventory_alerts FOR UPDATE
+TO authenticated
+USING (true);
+
+CREATE POLICY "Authenticated users can delete alerts"
+ON public.inventory_alerts FOR DELETE
+TO authenticated
+USING (true);
+
+================================================================================
+TABLA: inventory_item_states
+================================================================================
+-- Historial de cambios de estado de ítems
+
+CREATE TABLE public.inventory_item_states (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    state TEXT NOT NULL,
+    previous_state TEXT,
+    changed_by UUID NOT NULL,
+    change_reason TEXT,
+    observations TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_item_states ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view item states"
+ON public.inventory_item_states FOR SELECT
+USING (true);
+
+CREATE POLICY "Authenticated users can insert item states"
+ON public.inventory_item_states FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update item states"
+ON public.inventory_item_states FOR UPDATE
+TO authenticated
+USING (true);
+
+================================================================================
+TABLA: sh_checklists
+================================================================================
+-- Listas de verificación reutilizables
+
+CREATE TABLE public.sh_checklists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL,
+    items JSONB NOT NULL DEFAULT '[]',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.sh_checklists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view checklists"
+ON public.sh_checklists FOR SELECT
+USING (true);
+
+CREATE POLICY "Authenticated users can insert checklists"
+ON public.sh_checklists FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update checklists"
+ON public.sh_checklists FOR UPDATE
+TO authenticated
+USING (true);
+
+CREATE POLICY "Authenticated users can delete checklists"
+ON public.sh_checklists FOR DELETE
+TO authenticated
+USING (true);
+
+================================================================================
+TABLA: sh_area_evaluations
+================================================================================
+-- Evaluaciones de áreas de seguridad e higiene
+
+CREATE TABLE public.sh_area_evaluations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sector_id UUID NOT NULL REFERENCES public.sh_sectors(id),
+    evaluated_by UUID NOT NULL,
+    evaluation_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    cleanliness_score INTEGER,
+    order_score INTEGER,
+    lighting_score INTEGER,
+    ventilation_score INTEGER,
+    signage_score INTEGER,
+    ergonomics_score INTEGER,
+    tools_condition_score INTEGER,
+    furniture_condition_score INTEGER,
+    hazmat_control_score INTEGER,
+    risk_control_score INTEGER,
+    compliance_score INTEGER,
+    total_score INTEGER,
+    average_score INTEGER,
+    observations TEXT,
+    recommendations TEXT,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.sh_area_evaluations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view area evaluations"
+ON public.sh_area_evaluations FOR SELECT
+USING (true);
+
+CREATE POLICY "Authenticated users can insert area evaluations"
+ON public.sh_area_evaluations FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update area evaluations"
+ON public.sh_area_evaluations FOR UPDATE
+TO authenticated
+USING (true);
+
+CREATE POLICY "Authenticated users can delete area evaluations"
+ON public.sh_area_evaluations FOR DELETE
+TO authenticated
+USING (true);
+
+================================================================================
+TABLA: inspection_progress
+================================================================================
+-- Progreso de inspecciones
+
+CREATE TABLE public.inspection_progress (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    inspection_id UUID NOT NULL UNIQUE REFERENCES public.sh_inspections(id),
+    total_items INTEGER DEFAULT 0,
+    completed_items INTEGER DEFAULT 0,
+    pending_items INTEGER DEFAULT 0,
+    approved_items INTEGER DEFAULT 0,
+    rejected_items INTEGER DEFAULT 0,
+    completion_percentage INTEGER,
+    approval_percentage INTEGER,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inspection_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view progress"
+ON public.inspection_progress FOR SELECT
+USING (true);
+
+CREATE POLICY "System can insert inspection progress"
+ON public.inspection_progress FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update inspection progress"
+ON public.inspection_progress FOR UPDATE
+TO authenticated
+USING (true);
 
 ================================================================================
 TABLA: notifications
@@ -669,6 +970,18 @@ CREATE POLICY "Everyone can view sectors"
 ON public.sh_sectors FOR SELECT
 USING (true);
 
+CREATE POLICY "Anyone can insert sectors"
+ON public.sh_sectors FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update sectors"
+ON public.sh_sectors FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete sectors"
+ON public.sh_sectors FOR DELETE
+USING (true);
+
 ================================================================================
 TABLA: sh_inspections
 ================================================================================
@@ -693,6 +1006,18 @@ ALTER TABLE public.sh_inspections ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Everyone can view inspections"
 ON public.sh_inspections FOR SELECT
+USING (true);
+
+CREATE POLICY "Anyone can insert inspections"
+ON public.sh_inspections FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update inspections"
+ON public.sh_inspections FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete inspections"
+ON public.sh_inspections FOR DELETE
 USING (true);
 
 ================================================================================

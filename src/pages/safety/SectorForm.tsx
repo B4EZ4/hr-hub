@@ -196,7 +196,7 @@ export default function SectorForm() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="">Sin asignar</SelectItem>
-                          {users.map((user: any) => (
+                          {users && users.length > 0 && users.map((user: any) => (
                             <SelectItem key={user.user_id} value={user.user_id}>
                               {user.full_name}
                             </SelectItem>
