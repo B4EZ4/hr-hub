@@ -56,6 +56,9 @@ import AttendanceDashboard from "./pages/attendance/AttendanceDashboard";
 import { AreasDashboard } from "./pages/areas/AreasDashboard";
 import { AreasManagement } from "./pages/areas/AreasManagement";
 import { VacanciesManagement } from "./pages/areas/VacanciesManagement";
+import { PromotionsManagement } from "./pages/areas/PromotionsManagement";
+import { PersonnelHub } from "./pages/areas/PersonnelHub";
+import { PersonnelActivities } from "./pages/areas/PersonnelActivities";
 import BiometricAccessPoint from "./pages/BiometricAccessPoint";
 
 const queryClient = new QueryClient();
@@ -185,6 +188,11 @@ const App = () => (
             <Route path="/areas" element={<ProtectedRoute><AreasDashboard /></ProtectedRoute>} />
             <Route path="/areas/lista" element={<ProtectedRoute><AreasManagement /></ProtectedRoute>} />
             <Route path="/areas/vacantes" element={<ProtectedRoute><VacanciesManagement /></ProtectedRoute>} />
+            <Route path="/areas/promociones" element={<ProtectedRoute><PromotionsManagement /></ProtectedRoute>} />
+            <Route path="/areas/personal" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
+            <Route path="/areas/capacitacion" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
+            <Route path="/areas/evaluaciones" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
+            <Route path="/areas/actividades" element={<ProtectedRoute><PersonnelActivities /></ProtectedRoute>} />
             
             {/* Punto de Acceso Biométrico - Ruta aislada sin AppLayout */}
             <Route path="/punto-acceso" element={<BiometricAccessPoint />} />
