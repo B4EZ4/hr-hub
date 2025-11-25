@@ -13,8 +13,13 @@ import { useRoles } from "./hooks/useRoles";
 import UsersList from "./pages/users/UsersList";
 import UserForm from "./pages/users/UserForm";
 import UserDetail from "./pages/users/UserDetail";
+// VACACIONES IMPORTS
 import VacationRequest from "./pages/vacations/VacationRequest";
 import VacationsList from "./pages/vacations/VacationsList";
+import VacationsDashboard from "./pages/vacations/VacationsDashboard";
+import VacationCalendar from "./pages/vacations/VacationCalendar";
+import EmployeeVacationSearch from "./pages/vacations/EmployeeVacationSearch";
+
 import IncidentsList from "./pages/incidents/IncidentsList";
 import IncidentForm from "./pages/incidents/IncidentForm";
 import IncidentDetail from "./pages/incidents/IncidentDetail";
@@ -114,20 +119,23 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            
+
             {/* Usuarios */}
             <Route path="/usuarios" element={<ProtectedRoute><RequireManageUsers><UsersList /></RequireManageUsers></ProtectedRoute>} />
             <Route path="/usuarios/new" element={<ProtectedRoute><RequireManageUsers><UserForm /></RequireManageUsers></ProtectedRoute>} />
             <Route path="/usuarios/:id" element={<ProtectedRoute><RequireManageUsers><UserDetail /></RequireManageUsers></ProtectedRoute>} />
             <Route path="/usuarios/:id/edit" element={<ProtectedRoute><RequireManageUsers><UserForm /></RequireManageUsers></ProtectedRoute>} />
-            
+
             {/* Contratos legacy - redirect to Recruitment */}
             <Route path="/contratos/*" element={<Navigate to="/reclutamiento" replace />} />
-            
-            {/* Vacaciones */}
+
+            {/* Vacaciones - ACTUALIZADO AQUI */}
+            <Route path="/vacaciones" element={<ProtectedRoute><VacationsDashboard /></ProtectedRoute>} />
             <Route path="/vacaciones/solicitar" element={<ProtectedRoute><VacationRequest /></ProtectedRoute>} />
-            <Route path="/vacaciones" element={<ProtectedRoute><VacationsList /></ProtectedRoute>} />
-            
+            <Route path="/vacaciones/historial" element={<ProtectedRoute><VacationsList /></ProtectedRoute>} />
+            <Route path="/vacaciones/calendario" element={<ProtectedRoute><VacationCalendar /></ProtectedRoute>} />
+            <Route path="/vacaciones/buscar" element={<ProtectedRoute><EmployeeVacationSearch /></ProtectedRoute>} />
+
             {/* Asistencia */}
             <Route path="/asistencia" element={<ProtectedRoute><AttendanceDashboard /></ProtectedRoute>} />
 
@@ -137,14 +145,14 @@ const App = () => (
             <Route path="/incidencias/new" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
             <Route path="/incidencias/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
             <Route path="/incidencias/:id/edit" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
-            
+
             {/* Despidos */}
             <Route path="/despidos" element={<ProtectedRoute><TerminationsList /></ProtectedRoute>} />
             <Route path="/despidos/dashboard" element={<ProtectedRoute><TerminationsDashboard /></ProtectedRoute>} />
             <Route path="/despidos/nuevo" element={<ProtectedRoute><TerminationForm /></ProtectedRoute>} />
             <Route path="/despidos/:id" element={<ProtectedRoute><TerminationDetail /></ProtectedRoute>} />
             <Route path="/despidos/:id/editar" element={<ProtectedRoute><TerminationForm /></ProtectedRoute>} />
-            
+
             {/* Inventario */}
             <Route path="/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
             <Route path="/inventario/new" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
@@ -157,13 +165,13 @@ const App = () => (
             <Route path="/reclutamiento/candidatos" element={<ProtectedRoute><RecruitmentCandidatesList /></ProtectedRoute>} />
             <Route path="/reclutamiento/candidatos/:id" element={<ProtectedRoute><CandidateDetail /></ProtectedRoute>} />
             <Route path="/reclutamiento/entrevistas" element={<ProtectedRoute><RecruitmentInterviewsList /></ProtectedRoute>} />
-            
+
             {/* Documentos */}
             <Route path="/documentos" element={<ProtectedRoute><DocumentsList /></ProtectedRoute>} />
             <Route path="/documentos/new" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
             <Route path="/documentos/:id" element={<ProtectedRoute><DocumentDetail /></ProtectedRoute>} />
             <Route path="/documentos/:id/edit" element={<ProtectedRoute><DocumentForm /></ProtectedRoute>} />
-            
+
             {/* Seguridad e Higiene */}
             <Route path="/seguridad-higiene" element={<ProtectedRoute><SafetyHome /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inspecciones" element={<ProtectedRoute><InspectionsList /></ProtectedRoute>} />
@@ -196,7 +204,7 @@ const App = () => (
             <Route path="/seguridad-higiene/inventario/:id" element={<ProtectedRoute><InventoryDetail /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/:id/edit" element={<ProtectedRoute><InventoryForm /></ProtectedRoute>} />
             <Route path="/seguridad-higiene/inventario/asignar" element={<ProtectedRoute><InventoryAssignment /></ProtectedRoute>} />
-            
+
             {/* Áreas y Asignaciones */}
             <Route path="/areas" element={<ProtectedRoute><AreasDashboard /></ProtectedRoute>} />
             <Route path="/areas/lista" element={<ProtectedRoute><AreasManagement /></ProtectedRoute>} />
@@ -206,14 +214,14 @@ const App = () => (
             <Route path="/areas/capacitacion" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
             <Route path="/areas/evaluaciones" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
             <Route path="/areas/actividades" element={<ProtectedRoute><PersonnelActivities /></ProtectedRoute>} />
-            
-            {/* Punto de Acceso Biométrico - Ruta aislada sin AppLayout */}
+
+            {/* Punto de Acceso Biométrico */}
             <Route path="/punto-acceso" element={<BiometricAccessPoint />} />
-            
+
             {/* Configuración */}
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/settings/roles" element={<ProtectedRoute><RolesManager /></ProtectedRoute>} />
-            
+
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

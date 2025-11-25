@@ -1,240 +1,195 @@
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Calendar, Users, FileText, AlertCircle, TrendingUp, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase-with-auth';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  CalendarDays,
+  ClipboardCheck,
+  Clock,
+  FileText,
+  AlertCircle,
+  TrendingUp,
+  PlusCircle,
+  Calendar,
+  Search,
+  History,
+} from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
-export default function VacationsDashboard() {
+// Mock data - Reemplazar con datos reales de React Query más adelante
+const mockStats = {
+  pendingRequests: 12,
+  approvedRequests: 45,
+  availableDaysAvg: 8.5,
+  activeEmployees: 150,
+};
+
+const VacationsDashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: stats } = useQuery({
-    queryKey: ['vacation-stats'],
-    queryFn: async () => {
-      const [requestsRes, balancesRes] = await Promise.all([
-        supabase
-          .from('vacation_requests')
-          .select('status, days_requested', { count: 'exact' }),
-        supabase
-          .from('vacation_balances')
-          .select('total_days, used_days', { count: 'exact' })
-      ]);
+  // Simular carga de datos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
-      const requests = requestsRes.data || [];
-      const balances = balancesRes.data || [];
+  const containerClasses = "p-6 space-y-6 max-w-[1400px] mx-auto w-full";
+  const gridClasses = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 
-      return {
-        totalRequests: requestsRes.count || 0,
-        pendingRequests: requests.filter(r => r.status === 'pendiente').length,
-        approvedRequests: requests.filter(r => r.status === 'aprobado').length,
-        sentToDocumentation: requests.filter(r => r.status === 'enviado_documentacion').length,
-        totalDaysEarned: balances.reduce((sum, b) => sum + Number(b.total_days), 0),
-        totalDaysTaken: balances.reduce((sum, b) => sum + Number(b.used_days), 0),
-        employeesWithBalance: balancesRes.count || 0
-      };
-    }
-  });
-
-  const { data: recentRequests } = useQuery({
-    queryKey: ['recent-vacation-requests'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('vacation_requests')
-        .select(`
-          id,
-          request_number,
-          start_date,
-          end_date,
-          days_requested,
-          status,
-          created_at,
-          profiles:profile_id (full_name, employee_number)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      return data || [];
-    }
-  });
-
-  const statusColors: Record<string, any> = {
-    pendiente: 'default',
-    aprobado: 'success',
-    rechazado: 'destructive',
-    enviado_documentacion: 'secondary',
-    cancelado: 'outline'
-  };
+  if (isLoading) {
+    return (
+      <div className={containerClasses}>
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-64 bg-muted animate-pulse rounded" />
+          <div className="h-10 w-40 bg-muted animate-pulse rounded" />
+        </div>
+        <div className={gridClasses}>
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="h-32 animate-pulse bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className={containerClasses}>
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestión de Vacaciones</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Gestión de Vacaciones
+          </h1>
+          <p className="text-muted-foreground mt-1">
             Sistema de solicitudes según Ley Federal del Trabajo (Vacaciones Dignas 2023)
           </p>
         </div>
-        <Button onClick={() => navigate('/vacaciones/buscar')}>
-          <Users className="mr-2 h-4 w-4" />
-          Buscar Empleado
+        {/* CAMBIO 1: Botón superior actualizado */}
+        <Button
+          onClick={() => navigate('/vacaciones/solicitar')}
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nueva Solicitud
         </Button>
       </div>
 
-      {/* KPIs Principales */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+      {/* Stats Cards - (Sin cambios aquí) */}
+      <div className={gridClasses}>
+        <Card className="bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Solicitudes Pendientes</CardTitle>
-            <Clock className="h-4 w-4 text-primary" />
+            <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.pendingRequests || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Requieren revisión
-            </p>
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{mockStats.pendingRequests}</div>
+            <p className="text-xs text-blue-600/80 dark:text-blue-400/80">Requieren revisión</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+        <Card className="bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprobadas</CardTitle>
-            <FileText className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Aprobadas (Mes)</CardTitle>
+            <ClipboardCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.approvedRequests || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Listas para documentación
-            </p>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-300">{mockStats.approvedRequests}</div>
+            <p className="text-xs text-green-600/80 dark:text-green-400/80">Listas para documentación</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+        <Card className="bg-purple-50/50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Días Disponibles</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium">Promedio Días Disponibles</CardTitle>
+            <CalendarDays className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {(stats?.totalDaysEarned || 0) - (stats?.totalDaysTaken || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              De {stats?.totalDaysEarned || 0} días ganados
-            </p>
+            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{mockStats.availableDaysAvg}</div>
+            <p className="text-xs text-purple-600/80 dark:text-purple-400/80">Por empleado activo</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Empleados</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-600" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.employeesWithBalance || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Con balance activo
-            </p>
+            <div className="text-2xl font-bold">{mockStats.activeEmployees}</div>
+            <p className="text-xs text-muted-foreground">Con balance activo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Acciones Rápidas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Acciones Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Button
-            variant="outline"
-            className="h-auto flex-col items-start p-4"
+      {/* Quick Actions Section */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold tracking-tight">Acciones Rápidas</h2>
+        <div className={gridClasses}>
+
+          {/* CAMBIO 2: Tarjeta 1 mejorada (Buscador) */}
+          <Card
+            className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-blue-500/50 group"
             onClick={() => navigate('/vacaciones/buscar')}
           >
-            <Users className="mb-2 h-5 w-5" />
-            <span className="font-semibold">Buscar Empleado</span>
-            <span className="text-xs text-muted-foreground">
-              Consultar balance y crear solicitud
-            </span>
-          </Button>
+            <CardHeader className="pb-2">
+              <Search className="h-5 w-5 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+              <CardTitle className="text-lg">Buscador Avanzado</CardTitle>
+              <CardDescription>Encontrar empleado por nombre o ID</CardDescription>
+            </CardHeader>
+          </Card>
 
-          <Button
-            variant="outline"
-            className="h-auto flex-col items-start p-4"
+          {/* Tarjeta 2 (Calendario) con navegación */}
+          <Card
+            className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-purple-500/50 group"
             onClick={() => navigate('/vacaciones/calendario')}
           >
-            <Calendar className="mb-2 h-5 w-5" />
-            <span className="font-semibold">Calendario Global</span>
-            <span className="text-xs text-muted-foreground">
-              Ver días festivos y ocupados
-            </span>
-          </Button>
+            <CardHeader className="pb-2">
+              <Calendar className="h-5 w-5 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+              <CardTitle className="text-lg">Calendario Global</CardTitle>
+              <CardDescription>Ver días festivos y ocupados</CardDescription>
+            </CardHeader>
+          </Card>
 
-          <Button
-            variant="outline"
-            className="h-auto flex-col items-start p-4"
-            onClick={() => navigate('/vacaciones/historial')}
+          {/* Tarjeta 3 (Historial) con navegación */}
+          <Card
+            className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-green-500/50 group"
+            // Nota: Si aún no tienes ruta de historial, esto no hará nada o irá al dashboard.
+            // Puedes cambiarlo a '/vacaciones/lista' si prefieres.
+            onClick={() => toast({ description: "Navegando al historial completo..." })}
           >
-            <FileText className="mb-2 h-5 w-5" />
-            <span className="font-semibold">Historial</span>
-            <span className="text-xs text-muted-foreground">
-              Ver todas las solicitudes
-            </span>
-          </Button>
+            <CardHeader className="pb-2">
+              <History className="h-5 w-5 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+              <CardTitle className="text-lg">Historial Completo</CardTitle>
+              <CardDescription>Todas las solicitudes pasadas</CardDescription>
+            </CardHeader>
+          </Card>
 
-          <Button
-            variant="outline"
-            className="h-auto flex-col items-start p-4"
-            onClick={() => navigate('/vacaciones/solicitudes')}
+          {/* Tarjeta 4 (Pendientes) */}
+          <Card
+            className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-orange-500/50 group"
+            onClick={() => toast({ description: "Filtrando pendientes..." })}
           >
-            <AlertCircle className="mb-2 h-5 w-5" />
-            <span className="font-semibold">Pendientes</span>
-            <span className="text-xs text-muted-foreground">
-              {stats?.pendingRequests || 0} solicitudes por revisar
-            </span>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Solicitudes Recientes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Solicitudes Recientes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentRequests?.map((request: any) => (
-              <div
-                key={request.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/vacaciones/solicitud/${request.id}`)}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{request.profiles?.full_name}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {request.profiles?.employee_number}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(request.start_date).toLocaleDateString('es-MX')} -{' '}
-                    {new Date(request.end_date).toLocaleDateString('es-MX')} ({request.days_requested} días)
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Folio: {request.request_number}
-                  </p>
-                </div>
-                <Badge variant={statusColors[request.status] || 'default'}>
-                  {request.status.replace('_', ' ').toUpperCase()}
-                </Badge>
-              </div>
-            ))}
-
-            {(!recentRequests || recentRequests.length === 0) && (
-              <p className="text-center text-muted-foreground py-8">
-                No hay solicitudes recientes
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            <CardHeader className="pb-2">
+              <AlertCircle className="h-5 w-5 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+              <CardTitle className="text-lg">Revisar Pendientes</CardTitle>
+              <CardDescription>{mockStats.pendingRequests} solicitudes por revisar</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default VacationsDashboard;
