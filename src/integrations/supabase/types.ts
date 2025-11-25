@@ -139,6 +139,50 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_audit: {
+        Row: {
+          action: string
+          created_at: string
+          email: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auth_audit_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       biometric_events: {
         Row: {
           created_at: string
@@ -1857,6 +1901,115 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          last_active_at: string
+          token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          last_active_at?: string
+          token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          last_active_at?: string
+          token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          department: string | null
+          email: string
+          failed_login_attempts: number
+          full_name: string
+          id: string
+          is_locked: boolean
+          is_verified: boolean
+          last_login_at: string | null
+          password_hash: string
+          password_reset_expires_at: string | null
+          password_reset_token: string | null
+          phone: string | null
+          position: string | null
+          status: string
+          updated_at: string
+          verification_token: string | null
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          email: string
+          failed_login_attempts?: number
+          full_name: string
+          id: string
+          is_locked?: boolean
+          is_verified?: boolean
+          last_login_at?: string | null
+          password_hash: string
+          password_reset_expires_at?: string | null
+          password_reset_token?: string | null
+          phone?: string | null
+          position?: string | null
+          status?: string
+          updated_at?: string
+          verification_token?: string | null
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          email?: string
+          failed_login_attempts?: number
+          full_name?: string
+          id?: string
+          is_locked?: boolean
+          is_verified?: boolean
+          last_login_at?: string | null
+          password_hash?: string
+          password_reset_expires_at?: string | null
+          password_reset_token?: string | null
+          phone?: string | null
+          position?: string | null
+          status?: string
+          updated_at?: string
+          verification_token?: string | null
+        }
         Relationships: []
       }
       vacancy_applications: {
@@ -2003,6 +2156,8 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_expired_sessions: { Args: never; Returns: number }
+      get_current_user_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -1,27 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export type AppRole = 'superadmin' | 'admin_rrhh' | 'manager' | 'empleado' | 'oficial_sh' | 'auditor';
 
 export const useRoles = () => {
-  const { user } = useAuth();
-
-  const { data: roles = [], isLoading } = useQuery({
-    queryKey: ['user-roles', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      
-      const { data, error } = await (supabase as any)
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      return (data || []).map((r: any) => r.role as AppRole);
-    },
-    enabled: !!user,
-  });
+  const { roles: rolesFromContext } = useAuth();
+  const roles = (rolesFromContext || []) as AppRole[];
 
   const hasRole = (role: AppRole) => roles.includes(role);
   
@@ -37,7 +20,7 @@ export const useRoles = () => {
 
   return {
     roles,
-    isLoading,
+    isLoading: false,
     hasRole,
     hasAnyRole,
     isSuperadmin,
