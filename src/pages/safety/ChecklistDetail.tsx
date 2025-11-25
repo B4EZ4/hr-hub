@@ -181,11 +181,23 @@ export default function ChecklistDetail() {
                         
                         <div className="flex items-center gap-3 text-sm">
                           <Badge variant="outline" className="capitalize">
-                            {item.type === 'boolean' ? '☑️ Sí/No' : 
+                            {item.type === 'yes_no' ? '✓ / ✗ Sí/No' : 
                              item.type === 'text' ? '📝 Texto' : 
+                             item.type === 'numeric' ? '🔢 Numérico' :
                              item.type === 'select' ? '📋 Selección' : 
                              item.type}
                           </Badge>
+                          
+                          {item.type === 'yes_no' && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <span className="text-green-600 font-bold">✓</span> = Sí
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="text-red-600 font-bold">✗</span> = No
+                              </span>
+                            </div>
+                          )}
                           
                           {severity && (
                             <Badge variant={severity.variant} className="flex items-center gap-1">
