@@ -2164,6 +2164,21 @@ export type Database = {
         Args: { password: string; salt_hex: string }
         Returns: string
       }
+      get_all_users: {
+        Args: { session_token: string }
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          last_login_at: string
+          phone: string
+          role: string
+          status: string
+          updated_at: string
+          username: string
+        }[]
+      }
       get_current_user_id: { Args: never; Returns: string }
       has_role: {
         Args: {
