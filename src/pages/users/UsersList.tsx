@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ export default function UsersList() {
     queryKey: ['users'],
     queryFn: async () => {
       // Primero obtener los usuarios
-      const { data: usersData, error: usersError } = await (supabase as any)
+      const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false });
@@ -29,7 +29,7 @@ export default function UsersList() {
       if (usersError) throw usersError;
 
       // Luego obtener los roles de cada usuario
-      const { data: rolesData, error: rolesError } = await (supabase as any)
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
