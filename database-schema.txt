@@ -1,0 +1,902 @@
+================================================================================
+ESQUEMA COMPLETO DE LA BASE DE DATOS - SISTEMA RRHH
+================================================================================
+Fecha de generación: 2025-11-25
+Sistema de Recursos Humanos con autenticación personalizada
+
+Este archivo contiene la estructura completa de todas las tablas, funciones,
+triggers y políticas RLS del sistema. Puede usarse para migrar o recrear
+la base de datos completa en cualquier sistema PostgreSQL/Supabase.
+
+================================================================================
+TIPOS ENUM
+================================================================================
+
+-- Tipo de rol de usuario
+CREATE TYPE public.app_role AS ENUM ('superadmin', 'admin_rrhh');
+
+-- Estado de documentos
+CREATE TYPE public.document_status AS ENUM ('pendiente', 'validado', 'rechazado');
+
+================================================================================
+TABLA: users
+================================================================================
+-- Tabla principal de usuarios del sistema (autenticación personalizada)
+
+CREATE TABLE public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    username TEXT UNIQUE,
+    full_name TEXT NOT NULL,
+    phone TEXT,
+    password_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'activo',
+    department TEXT,
+    position TEXT,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Índices
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_username ON public.users(username);
+CREATE INDEX idx_users_status ON public.users(status);
+
+-- RLS: DESHABILITADO (consultas directas permitidas)
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: user_roles
+================================================================================
+-- Roles asignados a usuarios
+
+CREATE TABLE public.user_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    role public.app_role NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id, role)
+);
+
+-- Índices
+CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX idx_user_roles_role ON public.user_roles(role);
+
+-- RLS: DESHABILITADO
+ALTER TABLE public.user_roles DISABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: user_sessions
+================================================================================
+-- Sesiones de usuario para autenticación personalizada
+
+CREATE TABLE public.user_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Índices
+CREATE INDEX idx_user_sessions_token ON public.user_sessions(token);
+CREATE INDEX idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions(expires_at);
+
+-- RLS: Público (necesario para autenticación)
+ALTER TABLE public.user_sessions DISABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: profiles
+================================================================================
+-- Perfiles de empleados (datos adicionales)
+
+CREATE TABLE public.profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    birth_date DATE,
+    hire_date DATE,
+    department TEXT,
+    position TEXT,
+    manager_id UUID REFERENCES public.profiles(id),
+    status TEXT DEFAULT 'activo',
+    avatar_url TEXT,
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    must_change_password BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own profile"
+ON public.profiles FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own profile"
+ON public.profiles FOR UPDATE
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: areas
+================================================================================
+-- Áreas organizacionales
+
+CREATE TABLE public.areas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    parent_area_id UUID REFERENCES public.areas(id),
+    responsible_id UUID,
+    status TEXT NOT NULL DEFAULT 'activo',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: attendance_records
+================================================================================
+-- Registros de asistencia
+
+CREATE TABLE public.attendance_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    attendance_date DATE NOT NULL,
+    scheduled_start TIME NOT NULL,
+    scheduled_end TIME NOT NULL,
+    check_in TIMESTAMPTZ,
+    check_out TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'pendiente',
+    minutes_late INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users view own attendance"
+ON public.attendance_records FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users insert own attendance"
+ON public.attendance_records FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users update own attendance"
+ON public.attendance_records FOR UPDATE
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: audit_logs
+================================================================================
+-- Logs de auditoría del sistema
+
+CREATE TABLE public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    action TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    record_id UUID,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: auth_audit
+================================================================================
+-- Auditoría de autenticación
+
+CREATE TABLE public.auth_audit (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id),
+    email TEXT,
+    action TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    success BOOLEAN NOT NULL DEFAULT true,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.auth_audit ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service inserts audit"
+ON public.auth_audit FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Users view own audit"
+ON public.auth_audit FOR SELECT
+USING (user_id = get_current_user_id());
+
+================================================================================
+TABLA: biometric_templates
+================================================================================
+-- Plantillas biométricas (huellas dactilares)
+
+CREATE TABLE public.biometric_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    device_id TEXT NOT NULL,
+    encrypted_template TEXT NOT NULL,
+    method TEXT NOT NULL DEFAULT 'fingerprint',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id, device_id, method, status)
+);
+
+-- Políticas RLS
+ALTER TABLE public.biometric_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can insert templates"
+ON public.biometric_templates FOR INSERT
+WITH CHECK (false);
+
+CREATE POLICY "Users can view their own template metadata"
+ON public.biometric_templates FOR SELECT
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: biometric_events
+================================================================================
+-- Eventos biométricos (registros de verificación)
+
+CREATE TABLE public.biometric_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    event_type TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    hash TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.biometric_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can insert events"
+ON public.biometric_events FOR INSERT
+WITH CHECK (false);
+
+CREATE POLICY "Users can view their own events"
+ON public.biometric_events FOR SELECT
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: contracts
+================================================================================
+-- Contratos de empleados
+
+CREATE TABLE public.contracts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    contract_number TEXT NOT NULL,
+    type TEXT NOT NULL,
+    position TEXT NOT NULL,
+    department TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    salary NUMERIC,
+    status TEXT DEFAULT 'activo',
+    file_path TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own contracts"
+ON public.contracts FOR SELECT
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: documents
+================================================================================
+-- Documentos del sistema
+
+CREATE TABLE public.documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    file_path TEXT NOT NULL,
+    file_size INTEGER,
+    mime_type TEXT,
+    uploaded_by UUID NOT NULL,
+    employee_id UUID REFERENCES public.profiles(user_id),
+    is_public BOOLEAN DEFAULT false,
+    estado public.document_status NOT NULL DEFAULT 'pendiente',
+    motivo_rechazo TEXT,
+    tags TEXT[],
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users view own documents"
+ON public.documents FOR SELECT
+USING (auth.uid() = uploaded_by OR auth.uid() = employee_id);
+
+CREATE POLICY "Users insert own documents"
+ON public.documents FOR INSERT
+WITH CHECK (auth.uid() = uploaded_by AND estado = 'pendiente');
+
+CREATE POLICY "View public documents"
+ON public.documents FOR SELECT
+USING (is_public = true);
+
+CREATE POLICY "View validated public documents"
+ON public.documents FOR SELECT
+USING (is_public = true AND estado = 'validado');
+
+================================================================================
+TABLA: despidos
+================================================================================
+-- Registro de despidos
+
+CREATE TABLE public.despidos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL,
+    tipo_despido TEXT NOT NULL,
+    motivo TEXT NOT NULL,
+    fecha_despido DATE NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'pendiente',
+    indemnizacion NUMERIC,
+    liquidacion_final NUMERIC,
+    observaciones TEXT,
+    created_by UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.despidos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Empleados ver propio despido"
+ON public.despidos FOR SELECT
+USING (auth.uid() = employee_id);
+
+================================================================================
+TABLA: despido_documentos
+================================================================================
+-- Documentos relacionados con despidos
+
+CREATE TABLE public.despido_documentos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    despido_id UUID NOT NULL REFERENCES public.despidos(id) ON DELETE CASCADE,
+    nombre_archivo TEXT NOT NULL,
+    tipo_documento TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size BIGINT,
+    mime_type TEXT,
+    uploaded_by UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.despido_documentos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Empleados ver documentos propio despido"
+ON public.despido_documentos FOR SELECT
+USING (EXISTS (
+  SELECT 1 FROM despidos
+  WHERE despidos.id = despido_documentos.despido_id
+    AND despidos.employee_id = auth.uid()
+));
+
+================================================================================
+TABLA: incidents
+================================================================================
+-- Incidentes de seguridad/operación
+
+CREATE TABLE public.incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    incident_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    location TEXT,
+    status TEXT DEFAULT 'abierto',
+    reported_by UUID NOT NULL,
+    assigned_to UUID,
+    resolution TEXT,
+    resolved_at TIMESTAMPTZ,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view incidents"
+ON public.incidents FOR SELECT
+USING (true);
+
+CREATE POLICY "Users can create incidents"
+ON public.incidents FOR INSERT
+WITH CHECK (auth.uid() = reported_by);
+
+================================================================================
+TABLA: inventory_items
+================================================================================
+-- Inventario de artículos
+
+CREATE TABLE public.inventory_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    stock_quantity INTEGER DEFAULT 0,
+    min_stock INTEGER DEFAULT 0,
+    unit_price NUMERIC,
+    location TEXT,
+    status TEXT DEFAULT 'disponible',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view inventory"
+ON public.inventory_items FOR SELECT
+USING (true);
+
+================================================================================
+TABLA: inventory_assignments
+================================================================================
+-- Asignaciones de inventario a usuarios
+
+CREATE TABLE public.inventory_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    user_id UUID NOT NULL,
+    quantity INTEGER NOT NULL,
+    assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    return_date DATE,
+    status TEXT DEFAULT 'asignado',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_assignments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their assignments"
+ON public.inventory_assignments FOR SELECT
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: notifications
+================================================================================
+-- Notificaciones del sistema
+
+CREATE TABLE public.notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL,
+    link TEXT,
+    is_read BOOLEAN DEFAULT false,
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their notifications"
+ON public.notifications FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their notifications"
+ON public.notifications FOR UPDATE
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: recruitment_positions
+================================================================================
+-- Posiciones de reclutamiento
+
+CREATE TABLE public.recruitment_positions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    department TEXT,
+    location TEXT,
+    seniority TEXT,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'abierta',
+    hiring_manager UUID,
+    work_start_time TIME,
+    work_end_time TIME,
+    created_by UUID,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.recruitment_positions ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: recruitment_candidates
+================================================================================
+-- Candidatos en proceso de reclutamiento
+
+CREATE TABLE public.recruitment_candidates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    current_location TEXT,
+    resume_url TEXT,
+    source TEXT,
+    seniority TEXT,
+    status TEXT NOT NULL DEFAULT 'nuevo',
+    assigned_recruiter UUID,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.recruitment_candidates ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: recruitment_applications
+================================================================================
+-- Aplicaciones de candidatos a posiciones
+
+CREATE TABLE public.recruitment_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    candidate_id UUID NOT NULL REFERENCES public.recruitment_candidates(id),
+    position_id UUID REFERENCES public.recruitment_positions(id),
+    status TEXT NOT NULL DEFAULT 'en_revision',
+    current_stage TEXT DEFAULT 'screening',
+    hiring_manager UUID,
+    salary_expectation NUMERIC,
+    availability_date DATE,
+    priority TEXT DEFAULT 'media',
+    created_by UUID,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.recruitment_applications ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: recruitment_interviews
+================================================================================
+-- Entrevistas de reclutamiento
+
+CREATE TABLE public.recruitment_interviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id UUID NOT NULL REFERENCES public.recruitment_applications(id),
+    interview_type TEXT NOT NULL,
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    duration_minutes INTEGER,
+    location TEXT,
+    meeting_url TEXT,
+    status TEXT NOT NULL DEFAULT 'programada',
+    decision TEXT NOT NULL DEFAULT 'pendiente',
+    feedback_summary TEXT,
+    next_steps TEXT,
+    created_by UUID,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.recruitment_interviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Interview participants can view"
+ON public.recruitment_interviews FOR SELECT
+USING (EXISTS (
+  SELECT 1 FROM recruitment_interview_participants rip
+  WHERE rip.interview_id = recruitment_interviews.id
+    AND rip.participant_id = auth.uid()
+));
+
+================================================================================
+TABLA: sh_sectors
+================================================================================
+-- Sectores de seguridad e higiene
+
+CREATE TABLE public.sh_sectors (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    risk_level TEXT,
+    responsible_id UUID,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.sh_sectors ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view sectors"
+ON public.sh_sectors FOR SELECT
+USING (true);
+
+================================================================================
+TABLA: sh_inspections
+================================================================================
+-- Inspecciones de seguridad e higiene
+
+CREATE TABLE public.sh_inspections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sector_id UUID NOT NULL REFERENCES public.sh_sectors(id),
+    inspector_id UUID NOT NULL,
+    scheduled_date DATE NOT NULL,
+    completed_date DATE,
+    status TEXT DEFAULT 'programada',
+    findings TEXT,
+    recommendations TEXT,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.sh_inspections ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view inspections"
+ON public.sh_inspections FOR SELECT
+USING (true);
+
+================================================================================
+FUNCIONES DE BASE DE DATOS
+================================================================================
+
+-- Función: get_current_user_id()
+-- Obtiene el ID del usuario actual desde el token de sesión
+
+CREATE OR REPLACE FUNCTION public.get_current_user_id()
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  session_token TEXT;
+  user_id_result UUID;
+BEGIN
+  session_token := current_setting('request.headers', true)::json->>'x-session-token';
+  
+  IF session_token IS NULL OR session_token = '' THEN
+    RETURN NULL;
+  END IF;
+  
+  UPDATE public.user_sessions
+  SET last_active_at = now()
+  WHERE token = session_token
+    AND expires_at > now()
+  RETURNING user_id INTO user_id_result;
+    
+  RETURN user_id_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
+
+-- Función: has_role(_user_id, _role)
+-- Verifica si un usuario tiene un rol específico
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = _role
+  )
+$$;
+
+-- Función: is_system_user(_user_id)
+-- Verifica si un usuario es administrador del sistema
+
+CREATE OR REPLACE FUNCTION public.is_system_user(_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role IN ('superadmin', 'admin_rrhh')
+  )
+$$;
+
+-- Función: cleanup_expired_sessions()
+-- Limpia sesiones expiradas
+
+CREATE OR REPLACE FUNCTION public.cleanup_expired_sessions()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  deleted_count INTEGER;
+BEGIN
+  DELETE FROM public.user_sessions
+  WHERE expires_at < now();
+  
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$;
+
+-- Función: update_updated_at_column()
+-- Trigger function para actualizar automáticamente updated_at
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+-- Función: get_all_users(session_token)
+-- Obtiene todos los usuarios (solo para superadmin)
+
+CREATE OR REPLACE FUNCTION public.get_all_users(session_token TEXT)
+RETURNS TABLE(
+  id UUID,
+  email TEXT,
+  username TEXT,
+  full_name TEXT,
+  phone TEXT,
+  status TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  last_login_at TIMESTAMPTZ,
+  role TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  current_user_id UUID;
+BEGIN
+  SELECT user_id INTO current_user_id
+  FROM public.user_sessions
+  WHERE token = session_token
+    AND expires_at > now();
+  
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid or expired session token';
+  END IF;
+  
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = current_user_id AND role = 'superadmin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: only superadmin can view users';
+  END IF;
+  
+  RETURN QUERY
+  SELECT 
+    u.id,
+    u.email,
+    u.username,
+    u.full_name,
+    u.phone,
+    u.status,
+    u.created_at,
+    u.updated_at,
+    u.last_login_at,
+    COALESCE(ur.role::TEXT, 'admin_rrhh') as role
+  FROM public.users u
+  LEFT JOIN public.user_roles ur ON ur.user_id = u.id
+  ORDER BY u.created_at DESC;
+END;
+$$;
+
+================================================================================
+TRIGGERS
+================================================================================
+
+-- Trigger: update_areas_updated_at
+CREATE TRIGGER update_areas_updated_at
+BEFORE UPDATE ON public.areas
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger: attendance_records_set_timestamp
+CREATE TRIGGER attendance_records_set_timestamp
+BEFORE UPDATE ON public.attendance_records
+FOR EACH ROW
+EXECUTE FUNCTION attendance_records_set_timestamp();
+
+-- Trigger: update_biometric_templates_updated_at
+CREATE TRIGGER update_biometric_templates_updated_at
+BEFORE UPDATE ON public.biometric_templates
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger: update_contracts_updated_at
+CREATE TRIGGER update_contracts_updated_at
+BEFORE UPDATE ON public.contracts
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger: update_profiles_updated_at
+CREATE TRIGGER update_profiles_updated_at
+BEFORE UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Nota: Muchas otras tablas tienen triggers similares para updated_at
+
+================================================================================
+ÍNDICES IMPORTANTES
+================================================================================
+
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_username ON public.users(username);
+CREATE INDEX idx_users_status ON public.users(status);
+CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX idx_user_roles_role ON public.user_roles(role);
+CREATE INDEX idx_user_sessions_token ON public.user_sessions(token);
+CREATE INDEX idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions(expires_at);
+
+================================================================================
+NOTAS DE SEGURIDAD
+================================================================================
+
+1. Las tablas users y user_roles NO tienen RLS habilitado para permitir 
+   consultas directas desde la aplicación.
+
+2. La autenticación se maneja mediante tokens de sesión en la tabla 
+   user_sessions, no mediante Supabase Auth.
+
+3. Los roles se validan mediante las funciones has_role() e is_system_user().
+
+4. Las contraseñas se almacenan hasheadas en password_hash usando PBKDF2.
+
+5. Las plantillas biométricas están encriptadas con AES-256.
+
+================================================================================
+FIN DEL ESQUEMA
+================================================================================

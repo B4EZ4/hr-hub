@@ -1,12 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase-with-auth';
 import { getSessionToken } from '@/lib/auth';
+import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Eye, Pencil } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import React from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +29,53 @@ import {
 
 export default function UsersList() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
+  const [userToDelete, setUserToDelete] = React.useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const token = getSessionToken();
+      if (!token) throw new Error('No session token');
+
+      const { data, error } = await supabase.rpc('delete_user_safe', {
+        session_token: token,
+        user_id_to_delete: userId
+      });
+
+      if (error) throw error;
+      
+      const result = data as { success: boolean; error?: string; message?: string };
+      if (!result.success) {
+        throw new Error(result.error || 'Error al eliminar usuario');
+      }
+      
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Usuario eliminado exitosamente');
+      setShowDeleteDialog(false);
+      setUserToDelete(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Error al eliminar usuario');
+      setShowDeleteDialog(false);
+      setUserToDelete(null);
+    },
+  });
+
+  const handleDeleteClick = (userId: string) => {
+    setUserToDelete(userId);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (userToDelete) {
+      deleteMutation.mutate(userToDelete);
+    }
+  };
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -141,15 +200,49 @@ export default function UsersList() {
                 Ver detalle
               </DropdownMenuItem>
               {canManageUsers && (
-                <DropdownMenuItem onClick={() => navigate(`/usuarios/${row.id}/edit`)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Editar
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => navigate(`/usuarios/${row.id}/edit`)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => handleDeleteClick(row.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. El usuario será eliminado permanentemente del sistema junto con todos sus roles y sesiones.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteDialog(false);
+              setUserToDelete(null);
+            }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
