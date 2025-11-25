@@ -15,11 +15,16 @@ export function StockCriticalPanel() {
       const { data, error } = await (supabase as any)
         .from('inventory_items')
         .select('*')
-        .or('stock_quantity.lte.min_stock,stock_quantity.eq.0')
         .order('stock_quantity', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      
+      // Filtrar items críticos en el cliente (stock <= min_stock)
+      const filtered = (data || []).filter((item: any) => 
+        item.stock_quantity <= (item.min_stock || 0)
+      );
+      
+      return filtered;
     },
   });
 
