@@ -763,6 +763,16 @@ CREATE TABLE public.sh_area_evaluations (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.sh_area_evaluations
+  ADD CONSTRAINT sh_area_evaluations_evaluated_by_fkey
+  FOREIGN KEY (evaluated_by) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
+
+-- Índices
+CREATE INDEX idx_sh_area_evaluations_sector_id ON public.sh_area_evaluations(sector_id);
+CREATE INDEX idx_sh_area_evaluations_evaluated_by ON public.sh_area_evaluations(evaluated_by);
+CREATE INDEX idx_sh_area_evaluations_evaluation_date ON public.sh_area_evaluations(evaluation_date);
+
 -- Políticas RLS
 ALTER TABLE public.sh_area_evaluations ENABLE ROW LEVEL SECURITY;
 
@@ -963,6 +973,16 @@ CREATE TABLE public.sh_sectors (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.sh_sectors
+  ADD CONSTRAINT sh_sectors_responsible_id_fkey
+  FOREIGN KEY (responsible_id) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
+
+-- Índices
+CREATE INDEX idx_sh_sectors_name ON public.sh_sectors(name);
+CREATE INDEX idx_sh_sectors_risk_level ON public.sh_sectors(risk_level);
+CREATE INDEX idx_sh_sectors_responsible_id ON public.sh_sectors(responsible_id);
+
 -- Políticas RLS
 ALTER TABLE public.sh_sectors ENABLE ROW LEVEL SECURITY;
 
@@ -1000,6 +1020,17 @@ CREATE TABLE public.sh_inspections (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.sh_inspections
+  ADD CONSTRAINT sh_inspections_inspector_id_fkey
+  FOREIGN KEY (inspector_id) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
+
+-- Índices
+CREATE INDEX idx_sh_inspections_sector_id ON public.sh_inspections(sector_id);
+CREATE INDEX idx_sh_inspections_inspector_id ON public.sh_inspections(inspector_id);
+CREATE INDEX idx_sh_inspections_scheduled_date ON public.sh_inspections(scheduled_date);
+CREATE INDEX idx_sh_inspections_status ON public.sh_inspections(status);
 
 -- Políticas RLS
 ALTER TABLE public.sh_inspections ENABLE ROW LEVEL SECURITY;
