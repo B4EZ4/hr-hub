@@ -17,7 +17,7 @@ import { ArrowLeft } from 'lucide-react';
 const formSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   description: z.string().optional(),
-  risk_level: z.enum(['bajo', 'medio', 'alto']),
+  risk_level: z.enum(['bajo', 'medio', 'alto', 'muy_alto']),
   responsible_id: z.string().optional(),
 });
 
@@ -174,6 +174,7 @@ export default function SectorForm() {
                           <SelectItem value="bajo">Bajo</SelectItem>
                           <SelectItem value="medio">Medio</SelectItem>
                           <SelectItem value="alto">Alto</SelectItem>
+                          <SelectItem value="muy_alto">Muy Alto</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

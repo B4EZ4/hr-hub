@@ -20,7 +20,7 @@ const formSchema = z.object({
   sector_id: z.string().min(1, 'Seleccione un sector'),
   inspector_id: z.string().min(1, 'Seleccione un inspector'),
   scheduled_date: z.string().min(1, 'La fecha es requerida'),
-  status: z.enum(['programada', 'en_progreso', 'completada', 'cancelada']),
+  status: z.enum(['programada', 'en_progreso', 'en_curso', 'completada', 'cancelada']),
   findings: z.string().optional(),
   recommendations: z.string().optional(),
   completed_date: z.string().optional(),
@@ -250,6 +250,7 @@ export default function InspectionForm() {
                         <SelectContent>
                           <SelectItem value="programada">Programada</SelectItem>
                           <SelectItem value="en_progreso">En Progreso</SelectItem>
+                          <SelectItem value="en_curso">En Curso</SelectItem>
                           <SelectItem value="completada">Completada</SelectItem>
                           <SelectItem value="cancelada">Cancelada</SelectItem>
                         </SelectContent>
