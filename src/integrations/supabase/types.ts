@@ -2157,6 +2157,10 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_sessions: { Args: never; Returns: number }
+      generate_pbkdf2_hash: {
+        Args: { password: string; salt_hex: string }
+        Returns: string
+      }
       get_current_user_id: { Args: never; Returns: string }
       has_role: {
         Args: {
