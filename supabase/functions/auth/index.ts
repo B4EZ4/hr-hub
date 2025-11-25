@@ -1,11 +1,74 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { compare, hash } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-token',
 };
+
+// Funciones de hashing compatibles con Edge Runtime usando Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    data,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+  
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  );
+  
+  const hashArray = Array.from(new Uint8Array(derivedBits));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return `${saltHex}:${hashHex}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  
+  const [saltHex, hashHex] = storedHash.split(':');
+  const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    data,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+  
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  );
+  
+  const hashArray = Array.from(new Uint8Array(derivedBits));
+  const computedHashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return computedHashHex === hashHex;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -64,7 +127,7 @@ serve(async (req) => {
       }
 
       // Verificar contraseña
-      const passwordMatch = await compare(password, user.password_hash);
+      const passwordMatch = await verifyPassword(password, user.password_hash);
 
       if (!passwordMatch) {
         // Incrementar intentos fallidos
@@ -169,7 +232,7 @@ serve(async (req) => {
       }
 
       // Hash password
-      const passwordHash = await hash(password);
+      const passwordHash = await hashPassword(password);
 
       // Crear usuario
       const { data: newUser, error: createError } = await supabase
@@ -200,10 +263,10 @@ serve(async (req) => {
         );
       }
 
-      // Asignar rol por defecto (empleado)
+      // Asignar rol por defecto (admin_rrhh)
       await supabase.from('user_roles').insert({
         user_id: newUser.id,
-        role: 'empleado'
+        role: 'admin_rrhh'
       });
 
       // Log registro
