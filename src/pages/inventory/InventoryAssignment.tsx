@@ -69,13 +69,24 @@ export default function InventoryAssignment() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Verificar que el user_id existe en profiles
+      const { data: profileCheck } = await (supabase as any)
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', data.user_id)
+        .single();
+
+      if (!profileCheck) {
+        throw new Error('El empleado seleccionado no tiene un perfil válido');
+      }
+
       const payload = {
         item_id: data.item_id,
         user_id: data.user_id,
         quantity: data.quantity,
         assigned_date: data.assigned_date,
         return_date: data.return_date || null,
-        notes: data.notes || null,
+        notes: data.notes?.trim() || null,
         status: 'asignado',
       };
 
@@ -83,16 +94,23 @@ export default function InventoryAssignment() {
         .from('inventory_assignments')
         .insert(payload);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error al insertar asignación:', error);
+        throw new Error(`Error al crear asignación: ${error.message}`);
+      }
 
       // Update stock quantity
       const item = items.find((i: any) => i.id === data.item_id);
       if (item) {
-        const newStock = item.stock_quantity - data.quantity;
-        await (supabase as any)
+        const newStock = Math.max(0, item.stock_quantity - data.quantity);
+        const { error: updateError } = await (supabase as any)
           .from('inventory_items')
           .update({ stock_quantity: newStock })
           .eq('id', data.item_id);
+
+        if (updateError) {
+          console.error('Error al actualizar stock:', updateError);
+        }
       }
     },
     onSuccess: () => {
