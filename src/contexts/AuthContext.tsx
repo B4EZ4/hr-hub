@@ -7,7 +7,7 @@ interface AuthContextType {
   session: authLib.Session | null;
   roles: string[];
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (username: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -55,9 +55,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refreshSession();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (username: string, password: string) => {
     try {
-      const authData = await authLib.login(email, password);
+      const authData = await authLib.login(username, password);
       setUser(authData.user);
       setSession(authData.session);
       setRoles(authData.roles);

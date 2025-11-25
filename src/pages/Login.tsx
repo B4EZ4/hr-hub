@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -26,10 +26,10 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!username || !password) {
       toast({
         title: 'Error',
-        description: 'Por favor ingresa email y contraseña',
+        description: 'Por favor ingresa usuario y contraseña',
         variant: 'destructive',
       });
       return;
@@ -38,7 +38,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(username, password);
 
       if (error) {
         toast({
@@ -76,13 +76,13 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Usuario</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="usuario@empresa.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="Nombre de usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
                 required
               />
@@ -104,26 +104,10 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm space-y-2">
-            <div>
-              <span className="text-muted-foreground">¿No tienes cuenta? </span>
-              <Button
-                variant="link"
-                className="p-0 h-auto"
-                onClick={() => navigate('/signup')}
-              >
-                Regístrate aquí
-              </Button>
-            </div>
-            
-            <div className="pt-4 border-t">
-              <p className="text-xs text-muted-foreground mb-2">
-                <strong>Usuarios migrados:</strong> Si tenías una cuenta anterior, usa tu email y la contraseña temporal: <code className="bg-muted px-1 py-0.5 rounded">temp123</code>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Deberás cambiar tu contraseña después del primer login.
-              </p>
-            </div>
+          <div className="mt-6 text-center text-sm">
+            <p className="text-muted-foreground">
+              Ingresa con tu usuario y contraseña asignados
+            </p>
           </div>
         </CardContent>
       </Card>

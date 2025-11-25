@@ -1970,6 +1970,7 @@ export type Database = {
           position: string | null
           status: string
           updated_at: string
+          username: string | null
           verification_token: string | null
         }
         Insert: {
@@ -1989,6 +1990,7 @@ export type Database = {
           position?: string | null
           status?: string
           updated_at?: string
+          username?: string | null
           verification_token?: string | null
         }
         Update: {
@@ -2008,6 +2010,7 @@ export type Database = {
           position?: string | null
           status?: string
           updated_at?: string
+          username?: string | null
           verification_token?: string | null
         }
         Relationships: []
