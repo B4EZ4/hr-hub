@@ -45,16 +45,29 @@ export default function MaintenancesList() {
   const { data: maintenances = [], isLoading } = useQuery({
     queryKey: ['inventory-maintenance'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: maintenancesData, error: maintError } = await (supabase as any)
         .from('inventory_maintenance')
-        .select(`
-          *,
-          item:item_id (name, category)
-        `)
+        .select('*')
         .order('scheduled_date', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (maintError) throw maintError;
+      if (!maintenancesData || maintenancesData.length === 0) return [];
+
+      // Obtener items
+      const itemIds = [...new Set(maintenancesData.map((m: any) => m.item_id).filter(Boolean))];
+      let itemsMap: Record<string, any> = {};
+      if (itemIds.length > 0) {
+        const { data: items } = await (supabase as any)
+          .from('inventory_items')
+          .select('id, name, category')
+          .in('id', itemIds);
+        itemsMap = (items || []).reduce((acc: any, i: any) => ({ ...acc, [i.id]: i }), {});
+      }
+
+      return maintenancesData.map((maint: any) => ({
+        ...maint,
+        item: maint.item_id ? itemsMap[maint.item_id] : null,
+      }));
     },
   });
 

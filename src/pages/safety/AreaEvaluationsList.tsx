@@ -45,17 +45,41 @@ export default function AreaEvaluationsList() {
   const { data: evaluations = [], isLoading } = useQuery({
     queryKey: ['area-evaluations'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: evaluationsData, error: evalError } = await (supabase as any)
         .from('sh_area_evaluations')
-        .select(`
-          *,
-          sector:sector_id (name),
-          evaluator:evaluated_by (full_name)
-        `)
+        .select('*')
         .order('evaluation_date', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (evalError) throw evalError;
+      if (!evaluationsData || evaluationsData.length === 0) return [];
+
+      // Obtener sectores
+      const sectorIds = [...new Set(evaluationsData.map((e: any) => e.sector_id).filter(Boolean))];
+      let sectorsMap: Record<string, any> = {};
+      if (sectorIds.length > 0) {
+        const { data: sectors } = await (supabase as any)
+          .from('sh_sectors')
+          .select('id, name')
+          .in('id', sectorIds);
+        sectorsMap = (sectors || []).reduce((acc: any, s: any) => ({ ...acc, [s.id]: s }), {});
+      }
+
+      // Obtener evaluadores (profiles)
+      const evaluatorIds = [...new Set(evaluationsData.map((e: any) => e.evaluated_by).filter(Boolean))];
+      let evaluatorsMap: Record<string, any> = {};
+      if (evaluatorIds.length > 0) {
+        const { data: profiles } = await (supabase as any)
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', evaluatorIds);
+        evaluatorsMap = (profiles || []).reduce((acc: any, p: any) => ({ ...acc, [p.user_id]: p }), {});
+      }
+
+      return evaluationsData.map((evaluation: any) => ({
+        ...evaluation,
+        sector: evaluation.sector_id ? sectorsMap[evaluation.sector_id] : null,
+        evaluator: evaluation.evaluated_by ? evaluatorsMap[evaluation.evaluated_by] : null,
+      }));
     },
   });
 
