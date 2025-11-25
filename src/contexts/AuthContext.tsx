@@ -1,14 +1,15 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import * as authLib from '@/lib/auth';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: authLib.User | null;
+  session: authLib.Session | null;
+  roles: string[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,50 +23,66 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<authLib.User | null>(null);
+  const [session, setSession] = useState<authLib.Session | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+  const refreshSession = async () => {
+    try {
+      const authData = await authLib.verifySession();
+      if (authData) {
+        setUser(authData.user);
+        setSession(authData.session);
+        setRoles(authData.roles);
+      } else {
+        setUser(null);
+        setSession(null);
+        setRoles([]);
       }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      setUser(null);
+      setSession(null);
+      setRoles([]);
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
-    return () => subscription.unsubscribe();
+  useEffect(() => {
+    refreshSession();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const authData = await authLib.login(email, password);
+      setUser(authData.user);
+      setSession(authData.session);
+      setRoles(authData.roles);
+      return { error: null };
+    } catch (error: any) {
+      return { error: { message: error.message } };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await authLib.logout();
+    setUser(null);
+    setSession(null);
+    setRoles([]);
     navigate('/login');
   };
 
   const value = {
     user,
     session,
+    roles,
     loading,
     signIn,
     signOut,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

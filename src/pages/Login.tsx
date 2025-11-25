@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Login() {
@@ -29,31 +29,39 @@ export default function Login() {
     if (!email || !password) {
       toast({
         title: 'Error',
-        description: 'Por favor completa todos los campos',
+        description: 'Por favor ingresa email y contraseña',
         variant: 'destructive',
       });
       return;
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
-    
-    if (error) {
+
+    try {
+      const { error } = await signIn(email, password);
+
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error al iniciar sesión',
+          description: error.message,
+        });
+      } else {
+        toast({
+          title: 'Inicio de sesión exitoso',
+          description: 'Bienvenido al sistema',
+        });
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
       toast({
-        title: 'Error al iniciar sesión',
-        description: error.message === 'Invalid login credentials'
-          ? 'Credenciales incorrectas'
-          : error.message,
         variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Error al iniciar sesión',
       });
-    } else {
-      toast({
-        title: 'Inicio de sesión exitoso',
-        description: 'Bienvenido al sistema',
-      });
-      navigate('/dashboard');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -96,25 +104,26 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 space-y-3 rounded-lg border border-dashed bg-muted/50 p-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 font-medium text-foreground">
-              <ShieldCheck className="h-4 w-4" />
-              Acceso controlado
+          <div className="mt-6 text-center text-sm space-y-2">
+            <div>
+              <span className="text-muted-foreground">¿No tienes cuenta? </span>
+              <Button
+                variant="link"
+                className="p-0 h-auto"
+                onClick={() => navigate('/signup')}
+              >
+                Regístrate aquí
+              </Button>
             </div>
-            <p>
-              Las cuentas nuevas y los restablecimientos de contraseña solo los realiza el equipo de RRHH.
-              Si necesitas acceso o recuperar tu cuenta, comunícate con tu administrador o escribe a
-              <span className="font-semibold"> rrhh@empresa.com</span>.
-            </p>
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-              Nunca compartas tus credenciales con nadie.
+            
+            <div className="pt-4 border-t">
+              <p className="text-xs text-muted-foreground mb-2">
+                <strong>Usuarios migrados:</strong> Si tenías una cuenta anterior, usa tu email y la contraseña temporal: <code className="bg-muted px-1 py-0.5 rounded">temp123</code>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Deberás cambiar tu contraseña después del primer login.
+              </p>
             </div>
-          </div>
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Usuario por defecto:</p>
-            <p className="font-mono">admin@sistema-rrhh.com / Admin123!</p>
           </div>
         </CardContent>
       </Card>
