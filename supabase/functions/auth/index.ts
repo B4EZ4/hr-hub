@@ -115,26 +115,26 @@ serve(async (req) => {
 
     // Login
     if (action === 'login') {
-      const { email, password } = body;
+      const { username, password } = body;
 
-      if (!email || !password) {
+      if (!username || !password) {
         return new Response(
-          JSON.stringify({ error: 'Email y contraseña son requeridos' }),
+          JSON.stringify({ error: 'Usuario y contraseña son requeridos' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Buscar usuario
+      // Buscar usuario por username
       const { data: user, error: userError } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email.toLowerCase())
+        .eq('username', username.toLowerCase())
         .single();
 
       if (userError || !user) {
         // Log intento fallido
         await supabase.from('auth_audit').insert({
-          email,
+          email: username,
           action: 'failed_login',
           success: false,
           metadata: { reason: 'user_not_found' }
@@ -172,7 +172,7 @@ serve(async (req) => {
 
         await supabase.from('auth_audit').insert({
           user_id: user.id,
-          email,
+          email: user.email,
           action: 'failed_login',
           success: false,
           metadata: { failed_attempts: failedAttempts, locked: shouldLock }
@@ -211,7 +211,7 @@ serve(async (req) => {
       // Log login exitoso
       await supabase.from('auth_audit').insert({
         user_id: user.id,
-        email,
+        email: user.email,
         action: 'login',
         success: true
       });
@@ -242,7 +242,7 @@ serve(async (req) => {
 
     // Signup (protegido - solo para administradores o creación inicial)
     if (action === 'signup') {
-      const { email, password, full_name, phone, department, position, role } = body;
+      const { username, email, password, full_name, phone, role } = body;
       const sessionToken = req.headers.get('x-session-token');
 
       // Verificar si existen usuarios en el sistema
@@ -290,9 +290,9 @@ serve(async (req) => {
         }
       }
 
-      if (!email || !password || !full_name) {
+      if (!username || !email || !password || !full_name) {
         return new Response(
-          JSON.stringify({ error: 'Email, contraseña y nombre son requeridos' }),
+          JSON.stringify({ error: 'Usuario, email, contraseña y nombre son requeridos' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -312,12 +312,11 @@ serve(async (req) => {
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
+          username: username.toLowerCase(),
           email: email.toLowerCase(),
           password_hash: passwordHash,
           full_name,
           phone,
-          department,
-          position,
           is_verified: true,
         })
         .select()
@@ -326,7 +325,7 @@ serve(async (req) => {
       if (createError) {
         if (createError.code === '23505') {
           return new Response(
-            JSON.stringify({ error: 'El email ya está registrado' }),
+            JSON.stringify({ error: 'El usuario o email ya está registrado' }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -357,6 +356,7 @@ serve(async (req) => {
           message: 'Usuario creado exitosamente',
           user: {
             id: newUser.id,
+            username: newUser.username,
             email: newUser.email,
             full_name: newUser.full_name,
             role: assignedRole

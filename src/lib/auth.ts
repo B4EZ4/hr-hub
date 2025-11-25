@@ -50,7 +50,7 @@ export const clearSession = () => {
 };
 
 // Login
-export const login = async (email: string, password: string): Promise<AuthResponse> => {
+export const login = async (username: string, password: string): Promise<AuthResponse> => {
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=login`,
     {
@@ -59,7 +59,7 @@ export const login = async (email: string, password: string): Promise<AuthRespon
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }
   );
 

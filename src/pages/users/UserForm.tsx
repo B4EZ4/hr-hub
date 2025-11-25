@@ -28,17 +28,11 @@ import { Loader2 } from 'lucide-react';
 const userSchema = z.object({
   full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Email inválido').max(255),
-  phone: z.string().optional(),
-  department: z.string().optional(),
-  position: z.string().optional(),
+  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres').max(50).regex(/^[a-zA-Z0-9_]+$/, 'Solo letras, números y guión bajo'),
+  phone: z.string().min(1, 'El teléfono es requerido'),
   status: z.enum(['activo', 'inactivo', 'suspendido']),
-  role: z.enum(['superadmin', 'admin_rrhh']).optional(),
-  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').optional(),
-  hire_date: z.string().optional(),
-  birth_date: z.string().optional(),
-  address: z.string().optional(),
-  emergency_contact_name: z.string().optional(),
-  emergency_contact_phone: z.string().optional(),
+  role: z.enum(['superadmin', 'admin_rrhh']),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -70,17 +64,11 @@ export default function UserForm() {
     defaultValues: {
       full_name: '',
       email: '',
+      username: '',
       phone: '',
-      department: '',
-      position: '',
       status: 'activo',
       role: 'admin_rrhh',
       password: '',
-      hire_date: '',
-      birth_date: '',
-      address: '',
-      emergency_contact_name: '',
-      emergency_contact_phone: '',
     },
   });
 
@@ -89,15 +77,11 @@ export default function UserForm() {
       form.reset({
         full_name: user.full_name || '',
         email: user.email || '',
+        username: user.username || '',
         phone: user.phone || '',
-        department: user.department || '',
-        position: user.position || '',
         status: user.status || 'activo',
-        hire_date: user.hire_date || '',
-        birth_date: user.birth_date || '',
-        address: user.address || '',
-        emergency_contact_name: user.emergency_contact_name || '',
-        emergency_contact_phone: user.emergency_contact_phone || '',
+        role: 'admin_rrhh',
+        password: '',
       });
     }
   }, [user, form]);
@@ -107,15 +91,18 @@ export default function UserForm() {
       if (isEditMode) {
         const { error } = await (supabase as any)
           .from('profiles')
-          .update(data)
+          .update({
+            full_name: data.full_name,
+            email: data.email,
+            phone: data.phone,
+            status: data.status,
+          })
           .eq('id', id);
 
         if (error) throw error;
       } else {
-        // Obtener token de sesión actual
         const sessionToken = localStorage.getItem('sessionToken');
         
-        // Crear usuario mediante edge function auth
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=signup`,
           {
@@ -125,13 +112,12 @@ export default function UserForm() {
               'x-session-token': sessionToken || '',
             },
             body: JSON.stringify({
+              username: data.username,
               email: data.email,
-              password: data.password || 'TempPass123!', // Contraseña temporal si no se especifica
+              password: data.password,
               full_name: data.full_name,
               phone: data.phone,
-              department: data.department,
-              position: data.position,
-              role: data.role || 'admin_rrhh',
+              role: data.role,
             }),
           }
         );
@@ -143,7 +129,6 @@ export default function UserForm() {
 
         const result = await response.json();
         
-        // Actualizar perfil con datos adicionales
         if (result.user?.id) {
           const { error: profileError } = await (supabase as any)
             .from('profiles')
@@ -152,15 +137,7 @@ export default function UserForm() {
               full_name: data.full_name,
               email: data.email,
               phone: data.phone,
-              department: data.department,
-              position: data.position,
               status: data.status,
-              hire_date: data.hire_date,
-              birth_date: data.birth_date,
-              address: data.address,
-              emergency_contact_name: data.emergency_contact_name,
-              emergency_contact_phone: data.emergency_contact_phone,
-              must_change_password: true,
             });
 
           if (profileError) throw profileError;
@@ -229,38 +206,24 @@ export default function UserForm() {
 
             <FormField
               control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre de Usuario *</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={isEditMode} placeholder="Usuario para acceder al sistema" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Teléfono</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="department"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Departamento</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="position"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Posición</FormLabel>
+                  <FormLabel>Teléfono *</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -292,121 +255,44 @@ export default function UserForm() {
               )}
             />
 
-            {!isEditMode && (
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rol *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar rol" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-background z-50">
-                        <SelectItem value="superadmin">Administrador</SelectItem>
-                        <SelectItem value="admin_rrhh">RH</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            {!isEditMode && (
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contraseña Temporal</FormLabel>
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rol *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEditMode}>
                     <FormControl>
-                      <Input {...field} type="password" placeholder="Mínimo 8 caracteres" />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar rol" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Si se deja vacío, se asignará "TempPass123!" por defecto. El usuario deberá cambiarla en su primer inicio de sesión.
-                    </p>
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <FormField
-              control={form.control}
-              name="hire_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fecha de Contratación</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="date" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="birth_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fecha de Nacimiento</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="date" />
-                  </FormControl>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="superadmin">Administrador</SelectItem>
+                      <SelectItem value="admin_rrhh">RH</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
 
-          <FormField
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Dirección</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid gap-4 md:grid-cols-2">
+          {!isEditMode && (
             <FormField
               control={form.control}
-              name="emergency_contact_name"
+              name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contacto de Emergencia</FormLabel>
+                  <FormLabel>Contraseña *</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} type="password" placeholder="Mínimo 8 caracteres" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="emergency_contact_phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Teléfono de Emergencia</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          )}
 
           <div className="flex gap-2">
             <Button type="submit" disabled={mutation.isPending}>
