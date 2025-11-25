@@ -14,17 +14,41 @@ export default function InspectionsList() {
   const { data: inspections = [], isLoading } = useQuery({
     queryKey: ['sh-inspections'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: inspectionsData, error: inspError } = await (supabase as any)
         .from('sh_inspections')
-        .select(`
-          *,
-          sector:sector_id (name),
-          inspector:inspector_id (full_name)
-        `)
+        .select('*')
         .order('scheduled_date', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (inspError) throw inspError;
+      if (!inspectionsData || inspectionsData.length === 0) return [];
+
+      // Obtener sectores
+      const sectorIds = [...new Set(inspectionsData.map((i: any) => i.sector_id).filter(Boolean))];
+      let sectorsMap: Record<string, any> = {};
+      if (sectorIds.length > 0) {
+        const { data: sectors } = await (supabase as any)
+          .from('sh_sectors')
+          .select('id, name')
+          .in('id', sectorIds);
+        sectorsMap = (sectors || []).reduce((acc: any, s: any) => ({ ...acc, [s.id]: s }), {});
+      }
+
+      // Obtener inspectores (profiles)
+      const inspectorIds = [...new Set(inspectionsData.map((i: any) => i.inspector_id).filter(Boolean))];
+      let inspectorsMap: Record<string, any> = {};
+      if (inspectorIds.length > 0) {
+        const { data: profiles } = await (supabase as any)
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', inspectorIds);
+        inspectorsMap = (profiles || []).reduce((acc: any, p: any) => ({ ...acc, [p.user_id]: p }), {});
+      }
+
+      return inspectionsData.map((inspection: any) => ({
+        ...inspection,
+        sector: inspection.sector_id ? sectorsMap[inspection.sector_id] : null,
+        inspector: inspection.inspector_id ? inspectorsMap[inspection.inspector_id] : null,
+      }));
     },
   });
 

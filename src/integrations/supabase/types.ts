@@ -2174,6 +2174,8 @@ export type Database = {
       }
     }
     Functions: {
+      check_overdue_inspection_alerts: { Args: never; Returns: undefined }
+      check_overdue_maintenance_alerts: { Args: never; Returns: undefined }
       cleanup_expired_sessions: { Args: never; Returns: number }
       delete_user_safe: {
         Args: { session_token: string; user_id_to_delete: string }
