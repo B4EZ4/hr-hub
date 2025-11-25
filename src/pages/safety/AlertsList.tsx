@@ -238,7 +238,7 @@ export default function AlertsList() {
 
                 <div className="flex gap-2 pt-4">
                   <Button
-                    onClick={() => navigate(`/inventario/${selectedAlert.item?.id}`)}
+                    onClick={() => navigate(`/seguridad-higiene/inventario/${selectedAlert.item?.id}`)}
                     variant="outline"
                     className="flex-1"
                   >
