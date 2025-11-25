@@ -2160,6 +2160,10 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_sessions: { Args: never; Returns: number }
+      delete_user_safe: {
+        Args: { session_token: string; user_id_to_delete: string }
+        Returns: Json
+      }
       generate_pbkdf2_hash: {
         Args: { password: string; salt_hex: string }
         Returns: string
