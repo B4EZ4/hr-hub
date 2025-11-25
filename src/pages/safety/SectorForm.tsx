@@ -44,7 +44,7 @@ export default function SectorForm() {
     enabled: isEditing,
   });
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
     queryKey: ['users-list'],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -187,19 +187,25 @@ export default function SectorForm() {
                   name="responsible_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Responsable</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <FormLabel>Responsable (Opcional)</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        value={field.value || undefined}
+                        disabled={isLoadingUsers}
+                      >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un responsable" />
+                            <SelectValue placeholder={isLoadingUsers ? "Cargando..." : "Seleccione un responsable"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="">Sin asignar</SelectItem>
-                          {users && users.length > 0 && users.map((user: any) => (
-                            <SelectItem key={user.user_id} value={user.user_id}>
-                              {user.full_name}
-                            </SelectItem>
+                          {users.map((user: any) => (
+                            user.user_id && (
+                              <SelectItem key={user.user_id} value={user.user_id}>
+                                {user.full_name || 'Sin nombre'}
+                              </SelectItem>
+                            )
                           ))}
                         </SelectContent>
                       </Select>
