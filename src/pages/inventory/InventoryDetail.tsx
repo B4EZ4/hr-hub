@@ -30,6 +30,10 @@ export default function InventoryDetail() {
   const { data: item, isLoading } = useQuery({
     queryKey: ['inventory-item', id],
     queryFn: async () => {
+      if (!id || id === 'undefined') {
+        return null;
+      }
+      
       const { data, error } = await (supabase as any)
         .from('inventory_items')
         .select('*')
@@ -39,11 +43,16 @@ export default function InventoryDetail() {
       if (error) throw error;
       return data;
     },
+    enabled: !!id && id !== 'undefined',
   });
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['inventory-assignments', id],
     queryFn: async () => {
+      if (!id || id === 'undefined') {
+        return [];
+      }
+      
       const { data, error } = await (supabase as any)
         .from('inventory_assignments')
         .select(`
@@ -56,6 +65,7 @@ export default function InventoryDetail() {
       if (error) throw error;
       return data || [];
     },
+    enabled: !!id && id !== 'undefined',
   });
 
   const deleteMutation = useMutation({
