@@ -127,7 +127,6 @@ serve(async (req) => {
       // Buscar usuario por username
       const { data: user, error: userError } = await supabase
         .from('users')
-        .from('users')
         .select('*, profiles(department, position, areas(name), positions(title))')
         .eq('username', username.toLowerCase())
         .single();

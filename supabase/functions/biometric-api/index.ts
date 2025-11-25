@@ -96,8 +96,9 @@ serve(async (req) => {
             }
 
             // Get work schedule from position or use defaults
-            const scheduledStart = profile.positions?.work_start_time || '09:00:00';
-            const scheduledEnd = profile.positions?.work_end_time || '18:00:00';
+            const positions = Array.isArray(profile.positions) ? profile.positions[0] : profile.positions;
+            const scheduledStart = positions?.work_start_time || '09:00:00';
+            const scheduledEnd = positions?.work_end_time || '18:00:00';
 
             // 2. Check existing attendance for today
             const now = new Date();
