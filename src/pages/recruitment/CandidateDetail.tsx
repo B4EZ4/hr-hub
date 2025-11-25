@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { signup } from '../../lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { useRoles } from '@/hooks/useRoles';
 import { ScheduleInterviewDialog } from './ScheduleInterviewDialog';
 import { UpdateInterviewDialog } from './UpdateInterviewDialog';
+import { UpdateCandidateDialog } from './UpdateCandidateDialog';
 
 type CandidateRow = Tables<'recruitment_candidates'>;
 type ApplicationRow = Tables<'recruitment_applications'> & {
@@ -137,6 +139,7 @@ export default function CandidateDetail() {
   const queryClient = useQueryClient();
   const [isScheduleOpen, setScheduleOpen] = useState(false);
   const [isUpdateOpen, setUpdateOpen] = useState(false);
+  const [isUpdateCandidateOpen, setUpdateCandidateOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<InterviewRow | null>(null);
   const [interviewToDelete, setInterviewToDelete] = useState<InterviewRow | null>(null);
   const [isConfirmHireOpen, setConfirmHireOpen] = useState(false);
@@ -246,65 +249,129 @@ export default function CandidateDetail() {
     mutationFn: async ({ candidate, application }: ConfirmHirePayload) => {
       const position = application.position;
 
-      const { data: existingProfile, error: profileLookupError } = await (supabase as any)
-        .from('profiles')
-        .select('id, user_id')
-        .eq('email', candidate.email)
-        .limit(1)
+      // Resolve area_id and position_id from text values
+      let areaId: string | null = null;
+      let positionId: string | null = null;
+
+      if (position?.department) {
+        const { data: areaData } = await (supabase as any)
+          .from('areas')
+          .select('id')
+          .ilike('name', position.department)
+          .maybeSingle();
+
+        if (areaData) {
+          areaId = areaData.id;
+        } else {
+          // Optional: Create area if it doesn't exist, or just leave null
+          // For now, we'll try to create it to ensure data consistency
+          const { data: newArea } = await (supabase as any)
+            .from('areas')
+            .insert({ name: position.department, status: 'active' })
+            .select('id')
+            .single();
+          if (newArea) areaId = newArea.id;
+        }
+      }
+
+      if (position?.title) {
+        const { data: posData } = await (supabase as any)
+          .from('positions')
+          .select('id')
+          .ilike('title', position.title)
+          .maybeSingle();
+
+        if (posData) {
+          positionId = posData.id;
+        } else {
+          // Optional: Create position if it doesn't exist
+          const { data: newPos } = await (supabase as any)
+            .from('positions')
+            .insert({ title: position.title, area_id: areaId, status: 'active' })
+            .select('id')
+            .single();
+          if (newPos) positionId = newPos.id;
+        }
+      }
+
+      // Check if user exists in public.users (NOT auth.users)
+      const { data: existingUser, error: userLookupError } = await (supabase as any)
+        .from('users')
+        .select('id')
+        .eq('email', candidate.email.trim())
         .maybeSingle();
 
-      if (profileLookupError) throw profileLookupError;
+      if (userLookupError) throw userLookupError;
 
-      let userId = existingProfile?.user_id as string | undefined;
-      let profileId = existingProfile?.id as string | undefined;
+      let userId = existingUser?.id as string | undefined;
       let tempPassword: string | null = null;
 
       if (!userId) {
         const generatedPassword = generateTempPassword();
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: candidate.email,
-          password: generatedPassword,
-          options: {
-            data: {
-              full_name: candidate.full_name,
-            },
-          },
-        });
+        try {
+          // Use custom signup function to create user in public.users
+          const { user } = await signup({
+            username: candidate.email.trim(),
+            email: candidate.email.trim(),
+            password: generatedPassword,
+            full_name: candidate.full_name,
+            phone: candidate.phone || undefined,
+            department: position?.department || undefined,
+            position: position?.title || undefined,
+          });
 
-        if (signUpError) throw signUpError;
+          if (!user?.id) {
+            throw new Error('No se pudo crear el usuario del empleado.');
+          }
 
-        if (!signUpData.user?.id) {
-          throw new Error('No se pudo crear el usuario del empleado.');
+          userId = user.id;
+          tempPassword = generatedPassword;
+        } catch (error: any) {
+          // Handle case where user might have been created in race condition
+          if (error.message?.includes('ya está registrado')) {
+            const { data: retryUser } = await (supabase as any)
+              .from('users')
+              .select('id')
+              .eq('email', candidate.email.trim())
+              .maybeSingle();
+
+            if (retryUser) {
+              userId = retryUser.id;
+            } else {
+              throw error;
+            }
+          } else {
+            throw error;
+          }
         }
-
-        userId = signUpData.user.id;
-        tempPassword = generatedPassword;
       }
 
       const hireDate = new Date().toISOString().split('T')[0];
 
       const profilePayload = {
         full_name: candidate.full_name,
-        email: candidate.email,
+        email: candidate.email.trim(),
         phone: candidate.phone,
-        department: position?.department,
-        position: position?.title,
+        department: position?.department, // Keep for backward compatibility
+        position: position?.title,       // Keep for backward compatibility
+        area_id: areaId,
+        position_id: positionId,
         status: 'activo',
         hire_date: hireDate,
         address: candidate.current_location,
         must_change_password: true,
       };
 
-      if (!profileId) {
-        const { data: profileByUser, error: fetchProfileByUserError } = await (supabase as any)
-          .from('profiles')
-          .select('id')
-          .eq('user_id', userId)
-          .maybeSingle();
+      // Check if profile exists
+      const { data: existingProfile, error: profileLookupError } = await (supabase as any)
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-        if (fetchProfileByUserError) throw fetchProfileByUserError;
-        profileId = profileByUser?.id;
-      }
+      if (profileLookupError) throw profileLookupError;
+
+      let profileId = existingProfile?.id;
 
       if (profileId) {
         const { error: updateProfileError } = await (supabase as any)
@@ -351,6 +418,28 @@ export default function CandidateDetail() {
         .eq('id', application.id);
 
       if (applicationError) throw applicationError;
+
+      // Create contract record
+      const { error: contractError } = await (supabase as any)
+        .from('contracts')
+        .insert({
+          user_id: userId,
+          profile_id: profileId,
+          start_date: hireDate,
+          status: 'activo',
+          department: position?.department, // Keep for backward compatibility
+          position: position?.title,       // Keep for backward compatibility
+          area_id: areaId,
+          position_id: positionId,
+          salary: application.salary_expectation,
+          contract_type: 'indefinido' // Default to indefinite
+        });
+
+      if (contractError) {
+        console.error('Error creating contract:', contractError);
+        // Don't fail the whole process if contract creation fails, but log it
+        toast.error('Empleado contratado, pero hubo un error al crear el registro de contrato.');
+      }
 
       await (supabase as any)
         .from('vacation_balances')
@@ -499,11 +588,18 @@ export default function CandidateDetail() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Información general</CardTitle>
-            <CardDescription>Datos básicos y seguimiento del candidato.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="space-y-1">
+              <CardTitle>Información general</CardTitle>
+              <CardDescription>Datos básicos y seguimiento del candidato.</CardDescription>
+            </div>
+            {canManageRecruitment && (
+              <Button variant="ghost" size="icon" onClick={() => setUpdateCandidateOpen(true)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid gap-4 md:grid-cols-2 pt-4">
             {renderInfoRow('Email', candidate.email)}
             {renderInfoRow('Teléfono', candidate.phone)}
             {renderInfoRow('Fuente', candidate.source)}
@@ -676,6 +772,15 @@ export default function CandidateDetail() {
       )}
 
       {canManageRecruitment && (
+        <UpdateCandidateDialog
+          open={isUpdateCandidateOpen}
+          onOpenChange={setUpdateCandidateOpen}
+          candidate={candidate}
+          onUpdated={() => refetch()}
+        />
+      )}
+
+      {canManageRecruitment && (
         <AlertDialog
           open={Boolean(interviewToDelete)}
           onOpenChange={(open) => {
@@ -737,14 +842,10 @@ export default function CandidateDetail() {
                 onClick={handleConfirmHire}
                 disabled={confirmHireMutation.isPending}
               >
-                {confirmHireMutation.isPending ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Procesando...
-                  </span>
-                ) : (
-                  'Confirmar'
+                {confirmHireMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
+                Confirmar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

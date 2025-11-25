@@ -19,9 +19,9 @@ export default function EmployeeVacationSearch() {
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
 
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('profiles')
-        .select('id, full_name, employee_number, email, position, department, hire_date, status')
+        .select('id, full_name, employee_number, email, areas(name), positions(title), hire_date, status')
         .or(`full_name.ilike.%${searchTerm}%,employee_number.ilike.%${searchTerm}%`)
         .eq('status', 'activo')
         .limit(10);
@@ -37,9 +37,9 @@ export default function EmployeeVacationSearch() {
       if (!selectedEmployee) return null;
 
       const [profileRes, balanceRes, contractRes, attendanceRes, incidentsRes] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('profiles')
-          .select('*')
+          .select('*, areas(name), positions(title)')
           .eq('id', selectedEmployee)
           .single(),
         supabase
@@ -81,7 +81,7 @@ export default function EmployeeVacationSearch() {
       // Calcular antigüedad y días según ley
       const hireDate = new Date(profile.hire_date);
       const yearsOfService = Math.floor((new Date().getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 365));
-      
+
       let daysEarned = 12; // Año 1
       if (yearsOfService >= 2 && yearsOfService <= 5) {
         daysEarned = 12 + ((yearsOfService - 1) * 2);
@@ -147,7 +147,7 @@ export default function EmployeeVacationSearch() {
                       <Badge variant="outline">{emp.employee_number}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {emp.position} - {emp.department}
+                      {emp.positions?.title || 'Sin puesto'} - {emp.areas?.name || 'Sin departamento'}
                     </p>
                   </div>
                   <Button size="sm" variant="ghost">
@@ -190,12 +190,12 @@ export default function EmployeeVacationSearch() {
                   <p className="text-sm font-medium text-muted-foreground">Puesto</p>
                   <div className="flex items-center gap-2">
                     <Briefcase className="h-4 w-4 text-muted-foreground" />
-                    <p>{employeeDetail.profile.position}</p>
+                    <p>{employeeDetail.profile.positions?.title || employeeDetail.profile.position || 'No asignado'}</p>
                   </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Departamento</p>
-                  <p>{employeeDetail.profile.department}</p>
+                  <p>{employeeDetail.profile.areas?.name || employeeDetail.profile.department || 'No asignado'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Fecha de Contratación</p>

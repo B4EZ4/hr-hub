@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,16 +24,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Fingerprint } from 'lucide-react';
 
 const userSchema = z.object({
   full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Email inválido').max(255),
-  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres').max(50).regex(/^[a-zA-Z0-9_]+$/, 'Solo letras, números y guión bajo'),
+  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres').max(50).regex(/^[a-zA-Z0-9_@.]+$/, 'Solo letras, números, guión bajo, @ y punto').optional().or(z.literal('')),
   phone: z.string().min(1, 'El teléfono es requerido'),
   status: z.enum(['activo', 'inactivo', 'suspendido']),
   role: z.enum(['superadmin', 'admin_rrhh']),
-  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  password: z.string().optional(),
+  area_id: z.string().optional(),
+  position_id: z.string().optional(),
+  biometric_id: z.number().int().min(1).max(127).optional(),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -43,12 +46,41 @@ export default function UserForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isEditMode = !!id;
+  const [isEnrolling, setIsEnrolling] = useState(false);
+
+  // Fetch Areas
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('areas')
+        .select('id, name')
+        .eq('status', 'activo')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch Positions
+  const { data: positions = [] } = useQuery({
+    queryKey: ['positions'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('positions')
+        .select('id, title')
+        .eq('status', 'activo')
+        .order('title');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', id],
     queryFn: async () => {
       if (!id) return null;
-      
+
       // Obtener datos del usuario
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -67,9 +99,19 @@ export default function UserForm() {
 
       if (roleError) console.log('No role found for user');
 
+      // Obtener perfil (area y posicion)
+      const { data: profileData } = await (supabase as any)
+        .from('profiles')
+        .select('area_id, position_id, biometric_id')
+        .eq('user_id', id)
+        .single();
+
       return {
         ...userData,
-        role: roleData?.role || 'admin_rrhh'
+        role: roleData?.role || 'admin_rrhh',
+        area_id: profileData?.area_id,
+        position_id: profileData?.position_id,
+        biometric_id: profileData?.biometric_id,
       };
     },
     enabled: isEditMode,
@@ -85,6 +127,9 @@ export default function UserForm() {
       status: 'activo',
       role: 'admin_rrhh',
       password: '',
+      area_id: undefined,
+      position_id: undefined,
+      biometric_id: undefined,
     },
   });
 
@@ -98,12 +143,17 @@ export default function UserForm() {
         status: (user.status || 'activo') as 'activo' | 'inactivo' | 'suspendido',
         role: 'admin_rrhh',
         password: '',
+        area_id: user.area_id || undefined,
+        position_id: user.position_id || undefined,
+        biometric_id: user.biometric_id || undefined,
       });
     }
   }, [user, form]);
 
   const mutation = useMutation({
     mutationFn: async (data: UserFormData) => {
+      let userId = id;
+
       if (isEditMode) {
         // Actualizar usuario en la tabla users
         const { error: userError } = await supabase
@@ -119,7 +169,7 @@ export default function UserForm() {
         if (userError) throw userError;
       } else {
         const sessionToken = getSessionToken();
-        
+
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=signup`,
           {
@@ -144,10 +194,32 @@ export default function UserForm() {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Error al crear usuario');
         }
+
+        const responseData = await response.json();
+        userId = responseData.user.id;
+      }
+
+      // Actualizar o crear perfil con area y posicion
+      if (userId) {
+        const { error: profileError } = await (supabase as any)
+          .from('profiles')
+          .upsert({
+            user_id: userId,
+            full_name: data.full_name,
+            email: data.email,
+            phone: data.phone,
+            area_id: data.area_id || null,
+            position_id: data.position_id || null,
+            biometric_id: data.biometric_id || null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+
+        if (profileError) throw profileError;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user', id] });
       toast.success(isEditMode ? 'Usuario actualizado' : 'Usuario creado exitosamente');
       navigate('/usuarios');
     },
@@ -213,7 +285,7 @@ export default function UserForm() {
                 <FormItem>
                   <FormLabel>Nombre de Usuario *</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled={isEditMode} placeholder="Usuario para acceder al sistema" />
+                    <Input {...field} disabled={true} placeholder="Usuario para acceder al sistema" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -236,11 +308,61 @@ export default function UserForm() {
 
             <FormField
               control={form.control}
+              name="area_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Área / Departamento</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar área" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-background z-50">
+                      {areas.map((area: any) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="position_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Puesto / Cargo</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar puesto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-background z-50">
+                      {positions.map((pos: any) => (
+                        <SelectItem key={pos.id} value={pos.id}>
+                          {pos.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="status"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Estado *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -263,7 +385,7 @@ export default function UserForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rol *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEditMode}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar rol" />
@@ -290,6 +412,69 @@ export default function UserForm() {
                   <FormControl>
                     <Input {...field} type="password" placeholder="Mínimo 8 caracteres" />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {isEditMode && (
+            <FormField
+              control={form.control}
+              name="biometric_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID Biométrico (1-127)</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min={1}
+                        max={127}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                        placeholder="Ej: 1, 2, 3..."
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!field.value || isEnrolling}
+                      onClick={async () => {
+                        if (!field.value) {
+                          toast.error('Primero asigna un ID biométrico');
+                          return;
+                        }
+                        setIsEnrolling(true);
+                        try {
+                          const { error } = await (supabase as any)
+                            .from('device_commands')
+                            .insert({
+                              device_id: 'ESP32-001',
+                              command_type: 'ENROLL',
+                              payload: { biometric_id: field.value },
+                              status: 'pending'
+                            });
+
+                          if (error) throw error;
+
+                          toast.success('Comando enviado al dispositivo. Por favor, coloca tu dedo en el lector.');
+                        } catch (error: any) {
+                          toast.error(error.message || 'Error al enviar comando');
+                        } finally {
+                          setIsEnrolling(false);
+                        }
+                      }}
+                    >
+                      {isEnrolling ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Fingerprint className="h-4 w-4" />
+                      )}
+                      <span className="ml-2">Registrar Huella</span>
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

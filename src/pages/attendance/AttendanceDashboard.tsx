@@ -16,18 +16,20 @@ import { AlertTriangle, Clock8, UserCheck, Users } from "lucide-react";
 type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"] & {
   profiles?: {
     full_name: string;
-    department: string | null;
-    position: string | null;
+    areas?: { name: string } | null;
+    positions?: { title: string } | null;
   };
 };
 
 type EmployeeProfile = Pick<Database["public"]["Tables"]["profiles"]["Row"],
-  "id" | "full_name" | "department" | "position" | "status" | "avatar_url" | "hire_date">
-;
+  "id" | "full_name" | "status" | "avatar_url" | "hire_date"> & {
+    areas?: { name: string } | null;
+    positions?: { title: string } | null;
+  };
 
 type VacationRequest = Pick<Database["public"]["Tables"]["vacation_requests"]["Row"],
   "id" | "user_id" | "start_date" | "end_date" | "status">
-;
+  ;
 
 const formatTime = (value?: string | null) => value ? value.slice(0, 5) : "—";
 
@@ -37,11 +39,7 @@ const formatDate = (value?: string | null) => {
 };
 
 const getMinutesLate = (record: AttendanceRecord) => {
-  if (!record.check_in) return record.minutes_late || 0;
-  const scheduledDate = new Date(`${record.attendance_date}T${record.scheduled_start}`);
-  const checkInDate = new Date(record.check_in);
-  const diff = differenceInMinutes(checkInDate, scheduledDate);
-  return diff > 0 ? diff : 0;
+  return record.minutes_late || 0;
 };
 
 const statusVariant: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -63,7 +61,7 @@ export default function AttendanceDashboard() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("profiles")
-        .select("id, full_name, department, position, status, avatar_url, hire_date")
+        .select("id, full_name, status, avatar_url, hire_date, areas(name), positions(title)")
         .order("full_name", { ascending: true });
 
       if (error) throw error;
@@ -74,15 +72,36 @@ export default function AttendanceDashboard() {
   const { data: attendance = [], isLoading: attendanceLoading } = useQuery<AttendanceRecord[]>({
     queryKey: ["attendance-records", weekStart.toISOString(), weekEnd.toISOString()],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("attendance_records")
-        .select("*, profiles:profiles!attendance_records_user_id_fkey(full_name, department, position)")
+      // Try using the view first, fallback to direct query
+      let data, error;
+
+      // Attempt 1: Use view if it exists
+      ({ data, error } = await (supabase as any)
+        .from("attendance_with_profiles")
+        .select("*")
         .gte("attendance_date", format(weekStart, "yyyy-MM-dd"))
         .lte("attendance_date", format(weekEnd, "yyyy-MM-dd"))
         .order("attendance_date", { ascending: false })
-        .order("check_in", { ascending: true });
+        .order("check_in", { ascending: true }));
 
-      if (error) throw error;
+      if (error) {
+        console.warn("View not found, trying direct query...", error);
+
+        // Attempt 2: Direct query without JOIN
+        ({ data, error } = await (supabase as any)
+          .from("attendance_records")
+          .select("*")
+          .gte("attendance_date", format(weekStart, "yyyy-MM-dd"))
+          .lte("attendance_date", format(weekEnd, "yyyy-MM-dd"))
+          .order("attendance_date", { ascending: false })
+          .order("check_in", { ascending: true }));
+      }
+
+      if (error) {
+        console.error("Error fetching attendance:", error);
+        throw error;
+      }
+
       return data || [];
     },
   });
@@ -95,7 +114,10 @@ export default function AttendanceDashboard() {
         .select("id, user_id, start_date, end_date, status")
         .in("status", ["aprobado", "en_proceso"]);
 
-      if (error) throw error;
+      if (error) {
+        console.warn("vacation_requests table not found, skipping...");
+        return [];
+      }
       return data || [];
     },
   });
@@ -137,7 +159,7 @@ export default function AttendanceDashboard() {
   const departmentSummary = useMemo(() => {
     const todayMap = new Map(todayRecords.map((record) => [record.user_id, record]));
     return employees.reduce((acc, employee) => {
-      const department = employee.department || "Sin departamento";
+      const department = employee.areas?.name || "Sin departamento";
       if (!acc[department]) {
         acc[department] = { total: 0, present: 0 };
       }
@@ -250,19 +272,23 @@ export default function AttendanceDashboard() {
                       const statusKey = record.status || "pendiente";
                       const status = statusVariant[statusKey] || statusVariant.pendiente;
                       const employee = employeesMap.get(record.user_id);
-                      const employeeName = record.profiles?.full_name || employee?.full_name || "Empleado";
+                      // Support both view format (flat) and direct query format (nested)
+                      const employeeName = (record as any).full_name || record.profiles?.full_name || employee?.full_name || "Empleado";
+                      const position = (record as any).position_title || record.profiles?.positions?.title;
+                      const area = (record as any).area_name || record.profiles?.areas?.name;
+
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9">
-                                <AvatarImage src={employee?.avatar_url || undefined} alt={employeeName} />
+                                <AvatarImage src={(record as any).avatar_url || employee?.avatar_url || undefined} alt={employeeName} />
                                 <AvatarFallback>{employeeName.slice(0, 2).toUpperCase()}</AvatarFallback>
                               </Avatar>
                               <div>
                                 <p className="font-semibold">{employeeName}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {record.profiles?.position || record.profiles?.department || "Sin asignar"}
+                                  {position || area || "Sin asignar"}
                                 </p>
                               </div>
                             </div>

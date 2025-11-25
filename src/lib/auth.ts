@@ -75,6 +75,7 @@ export const login = async (username: string, password: string): Promise<AuthRes
 
 // Signup
 export const signup = async (userData: {
+  username: string;
   email: string;
   password: string;
   full_name: string;
@@ -89,6 +90,7 @@ export const signup = async (userData: {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'x-session-token': getSessionToken() || '',
       },
       body: JSON.stringify(userData),
     }
@@ -127,7 +129,7 @@ export const logout = async (): Promise<void> => {
 // Verificar sesión actual
 export const verifySession = async (): Promise<AuthResponse | null> => {
   const token = getSessionToken();
-  
+
   if (!token || isSessionExpired()) {
     clearSession();
     return null;

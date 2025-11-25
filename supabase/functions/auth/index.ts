@@ -11,7 +11,7 @@ async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  
+
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     data,
@@ -19,7 +19,7 @@ async function hashPassword(password: string): Promise<string> {
     false,
     ['deriveBits']
   );
-  
+
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
@@ -30,24 +30,24 @@ async function hashPassword(password: string): Promise<string> {
     keyMaterial,
     256
   );
-  
+
   const hashArray = Array.from(new Uint8Array(derivedBits));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-  
+
   return `${saltHex}:${hashHex}`;
 }
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
-  
+
   const [saltHex, hashHex] = storedHash.split(':');
-  
+
   // Intentar verificación PBKDF2 primero
   try {
     const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-    
+
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       data,
@@ -55,7 +55,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
       false,
       ['deriveBits']
     );
-    
+
     const derivedBits = await crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
@@ -66,23 +66,23 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
       keyMaterial,
       256
     );
-    
+
     const hashArray = Array.from(new Uint8Array(derivedBits));
     const computedHashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
+
     if (computedHashHex === hashHex) {
       return true;
     }
   } catch (e) {
     // Si falla PBKDF2, intentar verificación SHA256 simple (para usuario inicial)
   }
-  
+
   // Fallback: verificación SHA256 simple para usuario creado en migración
   const simpleHashData = encoder.encode(password + saltHex);
   const simpleHashBuffer = await crypto.subtle.digest('SHA-256', simpleHashData);
   const simpleHashArray = Array.from(new Uint8Array(simpleHashBuffer));
   const simpleHashHex = simpleHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
+
   return simpleHashHex === hashHex;
 }
 
@@ -99,7 +99,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-    
+
     // Parse body only for actions that need it
     let body: any = {};
     if (action === 'login' || action === 'signup') {
@@ -127,7 +127,8 @@ serve(async (req) => {
       // Buscar usuario por username
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('*')
+        .from('users')
+        .select('*, profiles(department, position, areas(name), positions(title))')
         .eq('username', username.toLowerCase())
         .single();
 
@@ -179,9 +180,9 @@ serve(async (req) => {
         });
 
         return new Response(
-          JSON.stringify({ 
-            error: shouldLock 
-              ? 'Cuenta bloqueada por múltiples intentos fallidos' 
+          JSON.stringify({
+            error: shouldLock
+              ? 'Cuenta bloqueada por múltiples intentos fallidos'
               : 'Credenciales inválidas'
           }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -229,8 +230,8 @@ serve(async (req) => {
             email: user.email,
             full_name: user.full_name,
             phone: user.phone,
-            department: user.department,
-            position: user.position,
+            department: (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.areas?.name || (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.department || user.department,
+            position: (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.positions?.title || (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.position || user.position,
             status: user.status
           },
           session: { token, expires_at: expiresAt.toISOString() },
@@ -279,8 +280,8 @@ serve(async (req) => {
           .from('user_roles')
           .select('role')
           .eq('user_id', session.user_id)
-          .eq('role', 'superadmin')
-          .single();
+          .in('role', ['superadmin', 'admin_rrhh'])
+          .maybeSingle();
 
         if (!userRole) {
           return new Response(
@@ -430,7 +431,7 @@ serve(async (req) => {
       // Obtener datos del usuario
       const { data: user } = await supabase
         .from('users')
-        .select('*')
+        .select('*, profiles(department, position, areas(name), positions(title))')
         .eq('id', session.user_id)
         .single();
 
@@ -447,8 +448,8 @@ serve(async (req) => {
             email: user.email,
             full_name: user.full_name,
             phone: user.phone,
-            department: user.department,
-            position: user.position,
+            department: (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.areas?.name || (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.department || user.department,
+            position: (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.positions?.title || (Array.isArray(user.profiles) ? user.profiles[0] : user.profiles)?.position || user.position,
             status: user.status
           },
           roles: roles?.map(r => r.role) || []

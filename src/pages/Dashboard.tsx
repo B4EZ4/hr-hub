@@ -50,10 +50,10 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('profiles')
-        .select('*')
+        .select('*, areas(name), positions(title)')
         .eq('user_id', user?.id)
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -179,11 +179,11 @@ export default function Dashboard() {
         .eq('status', 'pendiente')
         .order('created_at', { ascending: false })
         .limit(5);
-      
+
       const { count: totalCount } = await (supabase as any)
         .from('vacation_requests')
         .select('*', { count: 'exact', head: true });
-      
+
       return { total: totalCount || 0, pending: pending || [] };
     },
   });
@@ -198,11 +198,11 @@ export default function Dashboard() {
         .eq('status', 'abierto')
         .order('created_at', { ascending: false })
         .limit(5);
-      
+
       const { count: totalCount } = await (supabase as any)
         .from('incidents')
         .select('*', { count: 'exact', head: true });
-      
+
       return { total: totalCount || 0, open: open || [] };
     },
   });
@@ -217,11 +217,11 @@ export default function Dashboard() {
         .filter('stock_quantity', 'lte', 'min_stock')
         .order('stock_quantity', { ascending: true })
         .limit(5);
-      
+
       const { count: totalCount } = await (supabase as any)
         .from('inventory_items')
         .select('*', { count: 'exact', head: true });
-      
+
       return { total: totalCount || 0, critical: critical || [] };
     },
     enabled: canManageSH,
@@ -237,11 +237,11 @@ export default function Dashboard() {
         .eq('status', 'programada')
         .order('scheduled_date', { ascending: true })
         .limit(5);
-      
+
       const { count: totalCount } = await (supabase as any)
         .from('sh_inspections')
         .select('*', { count: 'exact', head: true });
-      
+
       return { total: totalCount || 0, upcoming: upcoming || [] };
     },
     enabled: canManageSH,
@@ -256,11 +256,11 @@ export default function Dashboard() {
         .select('*, profiles!documents_uploaded_by_fkey(full_name)')
         .order('created_at', { ascending: false })
         .limit(5);
-      
+
       const { count: totalCount } = await (supabase as any)
         .from('documents')
         .select('*', { count: 'exact', head: true });
-      
+
       return { total: totalCount || 0, recent: recent || [] };
     },
   });
@@ -349,8 +349,8 @@ export default function Dashboard() {
             Bienvenido/a, <span className="font-semibold text-foreground">{profile?.full_name || user?.email}</span>
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {profile?.position && `${profile.position} • `}
-            {profile?.department || 'Sistema RRHH'}
+            {profile?.positions?.title && `${profile.positions.title} • `}
+            {profile?.areas?.name || 'Sistema RRHH'}
           </p>
         </div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
@@ -359,7 +359,7 @@ export default function Dashboard() {
       {/* Stats Cards Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {statsCards.filter(card => card.show).map((card, index) => (
-          <Card 
+          <Card
             key={index}
             className={`relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${card.borderColor} border-2 group`}
             onClick={card.onClick}
@@ -403,9 +403,9 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Button 
-              onClick={() => navigate('/documentos/new')} 
-              variant="outline" 
+            <Button
+              onClick={() => navigate('/documentos/new')}
+              variant="outline"
               className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
             >
               <FileText className="mr-3 h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
@@ -415,11 +415,11 @@ export default function Dashboard() {
               </div>
               <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Button>
-            
+
             {canManageRecruitment && (
-              <Button 
-                onClick={() => navigate('/reclutamiento/candidatos')} 
-                variant="outline" 
+              <Button
+                onClick={() => navigate('/reclutamiento/candidatos')}
+                variant="outline"
                 className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
               >
                 <Briefcase className="mr-3 h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
@@ -430,10 +430,10 @@ export default function Dashboard() {
                 <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
               </Button>
             )}
-            
-            <Button 
-              onClick={() => navigate('/vacaciones/solicitar')} 
-              variant="outline" 
+
+            <Button
+              onClick={() => navigate('/vacaciones/solicitar')}
+              variant="outline"
               className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
             >
               <Calendar className="mr-3 h-5 w-5 text-purple-600 group-hover:scale-110 transition-transform" />
@@ -443,10 +443,10 @@ export default function Dashboard() {
               </div>
               <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Button>
-            
-            <Button 
-              onClick={() => navigate('/incidencias/new')} 
-              variant="outline" 
+
+            <Button
+              onClick={() => navigate('/incidencias/new')}
+              variant="outline"
               className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
             >
               <AlertTriangle className="mr-3 h-5 w-5 text-orange-600 group-hover:scale-110 transition-transform" />
@@ -456,12 +456,12 @@ export default function Dashboard() {
               </div>
               <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Button>
-            
+
             {canManageSH && (
               <>
-                <Button 
-                  onClick={() => navigate('/seguridad-higiene/inventario/new')} 
-                  variant="outline" 
+                <Button
+                  onClick={() => navigate('/seguridad-higiene/inventario/new')}
+                  variant="outline"
                   className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
                 >
                   <Package className="mr-3 h-5 w-5 text-red-600 group-hover:scale-110 transition-transform" />
@@ -471,10 +471,10 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight className="ml-auto h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Button>
-                
-                <Button 
-                  onClick={() => navigate('/seguridad-higiene/inspecciones/new')} 
-                  variant="outline" 
+
+                <Button
+                  onClick={() => navigate('/seguridad-higiene/inspecciones/new')}
+                  variant="outline"
                   className="h-auto py-4 justify-start group hover:border-primary hover:bg-primary/5 transition-all"
                 >
                   <Shield className="mr-3 h-5 w-5 text-indigo-600 group-hover:scale-110 transition-transform" />
@@ -554,7 +554,7 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {vacationsData.pending.map((vacation: any) => (
-                  <div 
+                  <div
                     key={vacation.id}
                     className="flex items-center justify-between p-4 border-2 border-purple-100 dark:border-purple-900 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950 hover:border-purple-300 dark:hover:border-purple-700 transition-all group"
                     onClick={() => navigate('/vacaciones')}
@@ -594,7 +594,7 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {incidentsData.open.map((incident: any) => (
-                  <div 
+                  <div
                     key={incident.id}
                     className="flex items-center justify-between p-4 border-2 border-orange-100 dark:border-orange-900 rounded-lg cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-300 dark:hover:border-orange-700 transition-all group"
                     onClick={() => navigate(`/incidencias/${incident.id}`)}
@@ -632,7 +632,7 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {inventoryData.critical.map((item: any) => (
-                  <div 
+                  <div
                     key={item.id}
                     className="flex items-center justify-between p-4 border-2 border-red-100 dark:border-red-900 rounded-lg cursor-pointer hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-300 dark:hover:border-red-700 transition-all group"
                     onClick={() => navigate(`/seguridad-higiene/inventario/${item.id}`)}
@@ -670,7 +670,7 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {inspectionsData.upcoming.map((inspection: any) => (
-                  <div 
+                  <div
                     key={inspection.id}
                     className="flex items-center justify-between p-4 border-2 border-indigo-100 dark:border-indigo-900 rounded-lg cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group"
                     onClick={() => navigate(`/seguridad-higiene/inspecciones/${inspection.id}`)}
@@ -710,7 +710,7 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {documentsData.recent.map((doc: any) => (
-                  <div 
+                  <div
                     key={doc.id}
                     className="flex items-center justify-between p-4 border-2 border-green-100 dark:border-green-900 rounded-lg cursor-pointer hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-300 dark:hover:border-green-700 transition-all group"
                     onClick={() => navigate(`/documentos/${doc.id}`)}

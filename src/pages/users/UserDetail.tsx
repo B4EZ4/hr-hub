@@ -35,9 +35,18 @@ export default function UserDetail() {
 
       if (roleError) console.log('No role found for user');
 
+      // Obtener datos del perfil (areas y posiciones)
+      const { data: profileData } = await (supabase as any)
+        .from('profiles')
+        .select('*, areas(name), positions(title)')
+        .eq('user_id', id)
+        .single();
+
       return {
         ...userData,
-        role: roleData?.role || 'admin_rrhh'
+        role: roleData?.role || 'admin_rrhh',
+        department: profileData?.areas?.name || userData.department,
+        position: profileData?.positions?.title || userData.position,
       };
     },
   });
