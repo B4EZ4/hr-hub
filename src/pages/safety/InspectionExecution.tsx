@@ -309,14 +309,25 @@ export default function InspectionExecution() {
                     <FormItem>
                       <FormLabel>Respuesta {item.required && <span className="text-destructive">*</span>}</FormLabel>
                       <FormControl>
-                        {item.type === 'checkbox' ? (
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              checked={field.value === true}
-                              onCheckedChange={(checked) => field.onChange(checked)}
-                            />
-                            <span className="text-sm">Conforme</span>
-                          </div>
+                        {item.type === 'yes_no' ? (
+                          <RadioGroup onValueChange={field.onChange} value={field.value}>
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="yes" id={`${item.id}-yes`} />
+                                <label htmlFor={`${item.id}-yes`} className="flex items-center gap-2 cursor-pointer">
+                                  <span className="text-green-600 font-bold text-lg">✓</span>
+                                  <span>Sí</span>
+                                </label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="no" id={`${item.id}-no`} />
+                                <label htmlFor={`${item.id}-no`} className="flex items-center gap-2 cursor-pointer">
+                                  <span className="text-red-600 font-bold text-lg">✗</span>
+                                  <span>No</span>
+                                </label>
+                              </div>
+                            </div>
+                          </RadioGroup>
                         ) : item.type === 'select' ? (
                           <Select onValueChange={field.onChange} value={field.value}>
                             <SelectTrigger>
@@ -330,15 +341,10 @@ export default function InspectionExecution() {
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : item.type === 'radio' ? (
-                          <RadioGroup onValueChange={field.onChange} value={field.value}>
-                            {(item.options || ['Sí', 'No', 'N/A']).map((opt: string) => (
-                              <div key={opt} className="flex items-center space-x-2">
-                                <RadioGroupItem value={opt} id={`${item.id}-${opt}`} />
-                                <label htmlFor={`${item.id}-${opt}`}>{opt}</label>
-                              </div>
-                            ))}
-                          </RadioGroup>
+                        ) : item.type === 'text' ? (
+                          <Textarea {...field} rows={2} placeholder="Ingresa tu respuesta" />
+                        ) : item.type === 'numeric' ? (
+                          <Input {...field} type="number" placeholder="Ingresa un número" />
                         ) : (
                           <Input {...field} placeholder="Ingresa tu respuesta" />
                         )}
