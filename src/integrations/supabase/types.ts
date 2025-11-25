@@ -253,6 +253,177 @@ export type Database = {
         }
         Relationships: []
       }
+      despido_audit: {
+        Row: {
+          action: string
+          created_at: string
+          despido_id: string
+          id: string
+          ip_address: string | null
+          new_values: Json | null
+          old_values: Json | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          despido_id: string
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          despido_id?: string
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despido_audit_despido_id_fkey"
+            columns: ["despido_id"]
+            isOneToOne: false
+            referencedRelation: "despidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despido_documentos: {
+        Row: {
+          created_at: string
+          despido_id: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          nombre_archivo: string
+          tipo_documento: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          despido_id: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          nombre_archivo: string
+          tipo_documento: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          despido_id?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          nombre_archivo?: string
+          tipo_documento?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despido_documentos_despido_id_fkey"
+            columns: ["despido_id"]
+            isOneToOne: false
+            referencedRelation: "despidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despido_notificaciones: {
+        Row: {
+          created_at: string
+          despido_id: string
+          id: string
+          leida: boolean
+          mensaje: string
+          tipo_notificacion: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          despido_id: string
+          id?: string
+          leida?: boolean
+          mensaje: string
+          tipo_notificacion: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          despido_id?: string
+          id?: string
+          leida?: boolean
+          mensaje?: string
+          tipo_notificacion?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despido_notificaciones_despido_id_fkey"
+            columns: ["despido_id"]
+            isOneToOne: false
+            referencedRelation: "despidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despidos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          estado: string
+          fecha_despido: string
+          id: string
+          indemnizacion: number | null
+          liquidacion_final: number | null
+          motivo: string
+          observaciones: string | null
+          tipo_despido: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          estado?: string
+          fecha_despido: string
+          id?: string
+          indemnizacion?: number | null
+          liquidacion_final?: number | null
+          motivo: string
+          observaciones?: string | null
+          tipo_despido: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          estado?: string
+          fecha_despido?: string
+          id?: string
+          indemnizacion?: number | null
+          liquidacion_final?: number | null
+          motivo?: string
+          observaciones?: string | null
+          tipo_despido?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           category: string

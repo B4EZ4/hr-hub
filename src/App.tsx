@@ -18,6 +18,11 @@ import VacationsList from "./pages/vacations/VacationsList";
 import IncidentsList from "./pages/incidents/IncidentsList";
 import IncidentForm from "./pages/incidents/IncidentForm";
 import IncidentDetail from "./pages/incidents/IncidentDetail";
+import IncidentsDashboard from "./pages/incidents/IncidentsDashboard";
+import TerminationsList from "./pages/terminations/TerminationsList";
+import TerminationForm from "./pages/terminations/TerminationForm";
+import TerminationDetail from "./pages/terminations/TerminationDetail";
+import TerminationsDashboard from "./pages/terminations/TerminationsDashboard";
 import InventoryList from "./pages/inventory/InventoryList";
 import InventoryForm from "./pages/inventory/InventoryForm";
 import InventoryAssignment from "./pages/inventory/InventoryAssignment";
@@ -128,9 +133,17 @@ const App = () => (
 
             {/* Incidencias */}
             <Route path="/incidencias" element={<ProtectedRoute><IncidentsList /></ProtectedRoute>} />
+            <Route path="/incidencias/dashboard" element={<ProtectedRoute><IncidentsDashboard /></ProtectedRoute>} />
             <Route path="/incidencias/new" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
             <Route path="/incidencias/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
             <Route path="/incidencias/:id/edit" element={<ProtectedRoute><IncidentForm /></ProtectedRoute>} />
+            
+            {/* Despidos */}
+            <Route path="/despidos" element={<ProtectedRoute><TerminationsList /></ProtectedRoute>} />
+            <Route path="/despidos/dashboard" element={<ProtectedRoute><TerminationsDashboard /></ProtectedRoute>} />
+            <Route path="/despidos/nuevo" element={<ProtectedRoute><TerminationForm /></ProtectedRoute>} />
+            <Route path="/despidos/:id" element={<ProtectedRoute><TerminationDetail /></ProtectedRoute>} />
+            <Route path="/despidos/:id/editar" element={<ProtectedRoute><TerminationForm /></ProtectedRoute>} />
             
             {/* Inventario */}
             <Route path="/inventario" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
