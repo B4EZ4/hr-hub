@@ -52,7 +52,7 @@ const candidateSchema = z.object({
     .optional()
     .or(z.literal('')),
   notes: z.string().max(2000, 'Máximo 2000 caracteres').optional().or(z.literal('')),
-  status: z.enum(['nuevo', 'en_proceso', 'entrevista', 'oferta', 'contratado', 'rechazado']).default('nuevo'),
+  status: z.enum(['nuevo', 'en_proceso', 'oferta', 'contratado', 'rechazado', 'archivado']).default('nuevo'),
   position_id: z.string().uuid().optional().nullable(),
 });
 
@@ -319,10 +319,10 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                     <SelectContent>
                       <SelectItem value="nuevo">Nuevo</SelectItem>
                       <SelectItem value="en_proceso">En proceso</SelectItem>
-                      <SelectItem value="entrevista">Entrevista</SelectItem>
-                      <SelectItem value="oferta">Oferta</SelectItem>
+                      <SelectItem value="oferta">Oferta enviada</SelectItem>
                       <SelectItem value="contratado">Contratado</SelectItem>
                       <SelectItem value="rechazado">Rechazado</SelectItem>
+                      <SelectItem value="archivado">Archivado</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
