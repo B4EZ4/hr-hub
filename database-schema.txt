@@ -107,7 +107,7 @@ TABLA: profiles
 
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL UNIQUE,
     full_name TEXT NOT NULL,
     email TEXT NOT NULL,
     phone TEXT,
@@ -125,6 +125,11 @@ CREATE TABLE public.profiles (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.profiles
+  ADD CONSTRAINT profiles_user_id_fkey 
+  FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 -- Políticas RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -207,6 +212,11 @@ CREATE TABLE public.audit_logs (
     user_agent TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.audit_logs
+  ADD CONSTRAINT audit_logs_user_id_fkey 
+  FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
@@ -914,10 +924,7 @@ BEGIN
     END IF;
   END IF;
   
-  -- Eliminar el usuario (CASCADE eliminará roles y sesiones)
-  DELETE FROM public.users WHERE id = user_id_to_delete;
-  
-  -- Registrar en auditoría
+  -- Registrar en auditoría ANTES de eliminar (para evitar problemas de FK)
   INSERT INTO public.audit_logs (
     user_id,
     action,
@@ -931,6 +938,9 @@ BEGIN
     user_id_to_delete,
     json_build_object('deleted_by', current_user_id, 'deleted_at', now())
   );
+  
+  -- Eliminar el usuario (CASCADE eliminará roles y sesiones)
+  DELETE FROM public.users WHERE id = user_id_to_delete;
   
   RETURN json_build_object(
     'success', true,
