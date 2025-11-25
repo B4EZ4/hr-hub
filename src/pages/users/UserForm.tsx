@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getSessionToken } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -101,7 +102,7 @@ export default function UserForm() {
 
         if (error) throw error;
       } else {
-        const sessionToken = localStorage.getItem('sessionToken');
+        const sessionToken = getSessionToken();
         
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=signup`,
@@ -109,6 +110,7 @@ export default function UserForm() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
               'x-session-token': sessionToken || '',
             },
             body: JSON.stringify({
