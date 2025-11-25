@@ -212,9 +212,55 @@ serve(async (req) => {
       );
     }
 
-    // Signup
+    // Signup (protegido - solo para administradores o creación inicial)
     if (action === 'signup') {
-      const { email, password, full_name, phone, department, position } = body;
+      const { email, password, full_name, phone, department, position, role } = body;
+      const sessionToken = req.headers.get('x-session-token');
+
+      // Verificar si existen usuarios en el sistema
+      const { count: userCount } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+
+      // Si hay usuarios, verificar que quien crea es administrador
+      if (userCount && userCount > 0) {
+        if (!sessionToken) {
+          return new Response(
+            JSON.stringify({ error: 'No autorizado. Solo administradores pueden crear usuarios' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verificar sesión del administrador
+        const { data: session } = await supabase
+          .from('user_sessions')
+          .select('user_id')
+          .eq('token', sessionToken)
+          .gt('expires_at', new Date().toISOString())
+          .single();
+
+        if (!session) {
+          return new Response(
+            JSON.stringify({ error: 'Sesión inválida o expirada' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verificar que el usuario es superadmin
+        const { data: userRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user_id)
+          .eq('role', 'superadmin')
+          .single();
+
+        if (!userRole) {
+          return new Response(
+            JSON.stringify({ error: 'Solo administradores pueden crear usuarios' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
 
       if (!email || !password || !full_name) {
         return new Response(
@@ -244,13 +290,13 @@ serve(async (req) => {
           phone,
           department,
           position,
-          is_verified: true, // Auto-verificado por ahora
+          is_verified: true,
         })
         .select()
         .single();
 
       if (createError) {
-        if (createError.code === '23505') { // Unique violation
+        if (createError.code === '23505') {
           return new Response(
             JSON.stringify({ error: 'El email ya está registrado' }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -263,10 +309,11 @@ serve(async (req) => {
         );
       }
 
-      // Asignar rol por defecto (admin_rrhh)
+      // Asignar rol: superadmin si es el primer usuario, o el rol especificado
+      const assignedRole = (userCount === 0) ? 'superadmin' : (role || 'admin_rrhh');
       await supabase.from('user_roles').insert({
         user_id: newUser.id,
-        role: 'admin_rrhh'
+        role: assignedRole
       });
 
       // Log registro
@@ -283,7 +330,8 @@ serve(async (req) => {
           user: {
             id: newUser.id,
             email: newUser.email,
-            full_name: newUser.full_name
+            full_name: newUser.full_name,
+            role: assignedRole
           }
         }),
         { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
