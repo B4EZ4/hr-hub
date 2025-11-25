@@ -32,6 +32,8 @@ const userSchema = z.object({
   department: z.string().optional(),
   position: z.string().optional(),
   status: z.enum(['activo', 'inactivo', 'suspendido']),
+  role: z.enum(['superadmin', 'admin_rrhh']).optional(),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').optional(),
   hire_date: z.string().optional(),
   birth_date: z.string().optional(),
   address: z.string().optional(),
@@ -72,6 +74,8 @@ export default function UserForm() {
       department: '',
       position: '',
       status: 'activo',
+      role: 'admin_rrhh',
+      password: '',
       hire_date: '',
       birth_date: '',
       address: '',
@@ -108,27 +112,56 @@ export default function UserForm() {
 
         if (error) throw error;
       } else {
-        // Create auth user first
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: data.email,
-          password: Math.random().toString(36).slice(-12) + 'Aa1!',
-          options: {
-            data: {
-              full_name: data.full_name,
+        // Obtener token de sesión actual
+        const sessionToken = localStorage.getItem('sessionToken');
+        
+        // Crear usuario mediante edge function auth
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=signup`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-session-token': sessionToken || '',
             },
-          },
-        });
+            body: JSON.stringify({
+              email: data.email,
+              password: data.password || 'TempPass123!', // Contraseña temporal si no se especifica
+              full_name: data.full_name,
+              phone: data.phone,
+              department: data.department,
+              position: data.position,
+              role: data.role || 'admin_rrhh',
+            }),
+          }
+        );
 
-        if (authError) throw authError;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Error al crear usuario');
+        }
 
-        if (authData.user) {
+        const result = await response.json();
+        
+        // Actualizar perfil con datos adicionales
+        if (result.user?.id) {
           const { error: profileError } = await (supabase as any)
             .from('profiles')
-            .update({
-              ...data,
+            .upsert({
+              user_id: result.user.id,
+              full_name: data.full_name,
+              email: data.email,
+              phone: data.phone,
+              department: data.department,
+              position: data.position,
+              status: data.status,
+              hire_date: data.hire_date,
+              birth_date: data.birth_date,
+              address: data.address,
+              emergency_contact_name: data.emergency_contact_name,
+              emergency_contact_phone: data.emergency_contact_phone,
               must_change_password: true,
-            })
-            .eq('user_id', authData.user.id);
+            });
 
           if (profileError) throw profileError;
         }
@@ -248,7 +281,7 @@ export default function UserForm() {
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent className="bg-background">
+                    <SelectContent className="bg-background z-50">
                       <SelectItem value="activo">Activo</SelectItem>
                       <SelectItem value="inactivo">Inactivo</SelectItem>
                       <SelectItem value="suspendido">Suspendido</SelectItem>
@@ -258,6 +291,49 @@ export default function UserForm() {
                 </FormItem>
               )}
             />
+
+            {!isEditMode && (
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rol *</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar rol" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="superadmin">Administrador</SelectItem>
+                        <SelectItem value="admin_rrhh">RH</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {!isEditMode && (
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña Temporal</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="password" placeholder="Mínimo 8 caracteres" />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      Si se deja vacío, se asignará "TempPass123!" por defecto. El usuario deberá cambiarla en su primer inicio de sesión.
+                    </p>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
