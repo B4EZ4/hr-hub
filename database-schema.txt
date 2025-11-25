@@ -552,8 +552,8 @@ CREATE TABLE public.inventory_movements (
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
     movement_type TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
-    authorized_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
+    authorized_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
     assignment_id UUID REFERENCES public.inventory_assignments(id),
     movement_date TIMESTAMPTZ DEFAULT now(),
     observations TEXT,
@@ -563,6 +563,8 @@ CREATE TABLE public.inventory_movements (
     file_paths TEXT[],
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+COMMENT ON TABLE public.inventory_movements IS 'Historial de movimientos de inventario (entradas, salidas, ajustes)';
 
 -- Políticas RLS
 ALTER TABLE public.inventory_movements ENABLE ROW LEVEL SECURITY;
@@ -597,12 +599,14 @@ CREATE TABLE public.inventory_maintenance (
     status TEXT DEFAULT 'pendiente',
     description TEXT,
     observations TEXT,
-    performed_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
+    performed_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
     cost NUMERIC,
     file_paths TEXT[],
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+COMMENT ON TABLE public.inventory_maintenance IS 'Registros de mantenimiento de equipos e ítems';
 
 -- Políticas RLS
 ALTER TABLE public.inventory_maintenance ENABLE ROW LEVEL SECURITY;

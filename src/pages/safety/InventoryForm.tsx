@@ -87,24 +87,24 @@ export default function InventoryForm() {
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const payload = {
-        name: data.name,
+        name: data.name.trim(),
         category: data.category,
-        description: data.description || null,
-        stock_quantity: parseInt(data.stock_quantity),
-        min_stock: parseInt(data.min_stock),
+        description: data.description?.trim() || null,
+        stock_quantity: parseInt(data.stock_quantity) || 0,
+        min_stock: parseInt(data.min_stock) || 0,
         unit_price: data.unit_price ? parseFloat(data.unit_price) : null,
-        location: data.location || null,
+        location: data.location?.trim() || null,
         status: data.status,
       };
 
       if (isEditing) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('inventory_items')
           .update(payload)
           .eq('id', id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('inventory_items')
           .insert(payload);
         if (error) throw error;
