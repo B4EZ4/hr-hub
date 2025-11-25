@@ -653,6 +653,33 @@ export type Database = {
           },
         ]
       }
+      holiday_calendar: {
+        Row: {
+          created_at: string | null
+          holiday_date: string
+          holiday_name: string
+          id: string
+          is_official: boolean | null
+          year: number
+        }
+        Insert: {
+          created_at?: string | null
+          holiday_date: string
+          holiday_name: string
+          id?: string
+          is_official?: boolean | null
+          year: number
+        }
+        Update: {
+          created_at?: string | null
+          holiday_date?: string
+          holiday_name?: string
+          id?: string
+          is_official?: boolean | null
+          year?: number
+        }
+        Relationships: []
+      }
       incidents: {
         Row: {
           assigned_to: string | null
@@ -2162,50 +2189,129 @@ export type Database = {
         }
         Relationships: []
       }
+      vacation_blackout_periods: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          end_date: string
+          id: string
+          is_active: boolean | null
+          reason: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean | null
+          reason: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean | null
+          reason?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_blackout_periods_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vacation_requests: {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          attendance_percentage: number | null
           created_at: string | null
+          created_by: string | null
+          daily_salary: number | null
           days_requested: number
           end_date: string
+          has_attendance_alert: boolean | null
           id: string
+          notes: string | null
           reason: string | null
           rejection_reason: string | null
+          request_number: string | null
+          return_date: string | null
+          sent_to_documentation_at: string | null
           start_date: string
           status: string | null
           updated_at: string | null
           user_id: string
+          vacation_bonus_amount: number | null
+          vacation_bonus_percentage: number | null
+          work_schedule: string | null
         }
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          attendance_percentage?: number | null
           created_at?: string | null
+          created_by?: string | null
+          daily_salary?: number | null
           days_requested: number
           end_date: string
+          has_attendance_alert?: boolean | null
           id?: string
+          notes?: string | null
           reason?: string | null
           rejection_reason?: string | null
+          request_number?: string | null
+          return_date?: string | null
+          sent_to_documentation_at?: string | null
           start_date: string
           status?: string | null
           updated_at?: string | null
           user_id: string
+          vacation_bonus_amount?: number | null
+          vacation_bonus_percentage?: number | null
+          work_schedule?: string | null
         }
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          attendance_percentage?: number | null
           created_at?: string | null
+          created_by?: string | null
+          daily_salary?: number | null
           days_requested?: number
           end_date?: string
+          has_attendance_alert?: boolean | null
           id?: string
+          notes?: string | null
           reason?: string | null
           rejection_reason?: string | null
+          request_number?: string | null
+          return_date?: string | null
+          sent_to_documentation_at?: string | null
           start_date?: string
           status?: string | null
           updated_at?: string | null
           user_id?: string
+          vacation_bonus_amount?: number | null
+          vacation_bonus_percentage?: number | null
+          work_schedule?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vacation_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -2220,6 +2326,14 @@ export type Database = {
       }
     }
     Functions: {
+      calculate_vacation_days: {
+        Args: { years_of_service: number }
+        Returns: number
+      }
+      calculate_years_of_service: {
+        Args: { hire_date: string }
+        Returns: number
+      }
       check_overdue_inspection_alerts: { Args: never; Returns: undefined }
       check_overdue_maintenance_alerts: { Args: never; Returns: undefined }
       cleanup_expired_sessions: { Args: never; Returns: number }
@@ -2232,6 +2346,7 @@ export type Database = {
         Args: { password: string; salt_hex: string }
         Returns: string
       }
+      generate_vacation_request_number: { Args: never; Returns: string }
       get_all_users: {
         Args: { session_token: string }
         Returns: {
