@@ -99,7 +99,19 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-    const body = await req.json();
+    
+    // Parse body only for actions that need it
+    let body: any = {};
+    if (action === 'login' || action === 'signup') {
+      try {
+        body = await req.json();
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: 'Cuerpo de petición inválido' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Login
     if (action === 'login') {
