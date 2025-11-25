@@ -264,12 +264,12 @@ export type Database = {
           id: string
           notes: string | null
           position: string
+          profile_id: string
           salary: number | null
           start_date: string
           status: string | null
           type: string
           updated_at: string | null
-          user_id: string
         }
         Insert: {
           contract_number: string
@@ -280,12 +280,12 @@ export type Database = {
           id?: string
           notes?: string | null
           position: string
+          profile_id: string
           salary?: number | null
           start_date: string
           status?: string | null
           type: string
           updated_at?: string | null
-          user_id: string
         }
         Update: {
           contract_number?: string
@@ -296,14 +296,22 @@ export type Database = {
           id?: string
           notes?: string | null
           position?: string
+          profile_id?: string
           salary?: number | null
           start_date?: string
           status?: string | null
           type?: string
           updated_at?: string | null
-          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contracts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       despido_audit: {
         Row: {
@@ -537,7 +545,7 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -793,7 +801,7 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -808,7 +816,7 @@ export type Database = {
           return_date: string | null
           status: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           assigned_date?: string
@@ -820,7 +828,7 @@ export type Database = {
           return_date?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           assigned_date?: string
@@ -832,7 +840,7 @@ export type Database = {
           return_date?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -847,7 +855,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -993,7 +1001,7 @@ export type Database = {
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1059,7 +1067,7 @@ export type Database = {
             columns: ["authorized_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "inventory_movements_item_id_fkey"
@@ -1073,7 +1081,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1236,6 +1244,7 @@ export type Database = {
           email: string
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
+          employee_number: string | null
           full_name: string
           hire_date: string | null
           id: string
@@ -1245,7 +1254,7 @@ export type Database = {
           position: string | null
           status: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           address?: string | null
@@ -1256,6 +1265,7 @@ export type Database = {
           email: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          employee_number?: string | null
           full_name: string
           hire_date?: string | null
           id?: string
@@ -1265,7 +1275,7 @@ export type Database = {
           position?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           address?: string | null
@@ -1276,6 +1286,7 @@ export type Database = {
           email?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          employee_number?: string | null
           full_name?: string
           hire_date?: string | null
           id?: string
@@ -1285,7 +1296,7 @@ export type Database = {
           position?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1298,7 +1309,7 @@ export type Database = {
           {
             foreignKeyName: "profiles_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2216,6 +2227,7 @@ export type Database = {
         Args: { session_token: string; user_id_to_delete: string }
         Returns: Json
       }
+      generate_employee_number: { Args: never; Returns: string }
       generate_pbkdf2_hash: {
         Args: { password: string; salt_hex: string }
         Returns: string
@@ -2242,6 +2254,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      hire_candidate: {
+        Args: { candidate_id: string; contract_data: Json }
+        Returns: Json
       }
       is_system_user: { Args: { _user_id: string }; Returns: boolean }
     }
