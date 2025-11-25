@@ -190,7 +190,7 @@ export default function SectorForm() {
                       <FormLabel>Responsable (Opcional)</FormLabel>
                       <Select 
                         onValueChange={field.onChange} 
-                        value={field.value || undefined}
+                        value={field.value || ""}
                         disabled={isLoadingUsers}
                       >
                         <FormControl>
@@ -200,12 +200,10 @@ export default function SectorForm() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="">Sin asignar</SelectItem>
-                          {users.map((user: any) => (
-                            user.user_id && (
-                              <SelectItem key={user.user_id} value={user.user_id}>
-                                {user.full_name || 'Sin nombre'}
-                              </SelectItem>
-                            )
+                          {Array.isArray(users) && users.filter((u: any) => u?.user_id && u?.full_name).map((user: any) => (
+                            <SelectItem key={user.user_id} value={user.user_id}>
+                              {user.full_name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
