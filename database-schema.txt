@@ -1,7 +1,7 @@
 ================================================================================
 ESQUEMA COMPLETO DE LA BASE DE DATOS - SISTEMA RRHH
 ================================================================================
-Fecha de generación: 2025-11-25
+Fecha de generación: 2025-11-25 (ACTUALIZADO)
 Sistema de Recursos Humanos con autenticación personalizada
 
 Este archivo contiene la estructura completa de todas las tablas, funciones,
@@ -34,6 +34,12 @@ CREATE TABLE public.users (
     department TEXT,
     position TEXT,
     last_login_at TIMESTAMPTZ,
+    is_verified BOOLEAN NOT NULL DEFAULT false,
+    is_locked BOOLEAN NOT NULL DEFAULT false,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    password_reset_token TEXT,
+    password_reset_expires_at TIMESTAMPTZ,
+    verification_token TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -43,7 +49,7 @@ CREATE INDEX idx_users_email ON public.users(email);
 CREATE INDEX idx_users_username ON public.users(username);
 CREATE INDEX idx_users_status ON public.users(status);
 
--- RLS: DESHABILITADO (consultas directas permitidas)
+-- RLS: DESHABILITADO (consultas directas permitidas por Administradores)
 ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 
 ================================================================================
@@ -131,6 +137,10 @@ ALTER TABLE public.profiles
   ADD CONSTRAINT profiles_user_id_fkey 
   FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
+ALTER TABLE public.profiles
+  ADD CONSTRAINT profiles_manager_id_fkey
+  FOREIGN KEY (manager_id) REFERENCES public.profiles(id);
+
 -- Políticas RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -157,6 +167,11 @@ CREATE TABLE public.areas (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.areas
+  ADD CONSTRAINT areas_parent_area_id_fkey
+  FOREIGN KEY (parent_area_id) REFERENCES public.areas(id);
 
 ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
 
@@ -360,6 +375,11 @@ CREATE TABLE public.documents (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.documents
+  ADD CONSTRAINT documents_employee_id_fkey
+  FOREIGN KEY (employee_id) REFERENCES public.profiles(user_id);
+
 -- Políticas RLS
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 
@@ -423,6 +443,11 @@ CREATE TABLE public.despido_documentos (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.despido_documentos
+  ADD CONSTRAINT despido_documentos_despido_id_fkey
+  FOREIGN KEY (despido_id) REFERENCES public.despidos(id) ON DELETE CASCADE;
+
 -- Políticas RLS
 ALTER TABLE public.despido_documentos ENABLE ROW LEVEL SECURITY;
 
@@ -433,6 +458,142 @@ USING (EXISTS (
   WHERE despidos.id = despido_documentos.despido_id
     AND despidos.employee_id = auth.uid()
 ));
+
+================================================================================
+TABLA: despido_audit
+================================================================================
+-- Auditoría de despidos
+
+CREATE TABLE public.despido_audit (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    despido_id UUID NOT NULL,
+    user_id UUID,
+    action TEXT NOT NULL,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.despido_audit
+  ADD CONSTRAINT despido_audit_despido_id_fkey
+  FOREIGN KEY (despido_id) REFERENCES public.despidos(id) ON DELETE CASCADE;
+
+-- Políticas RLS
+ALTER TABLE public.despido_audit ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Sistema insertar despido audit"
+ON public.despido_audit FOR INSERT
+WITH CHECK (true);
+
+================================================================================
+TABLA: despido_notificaciones
+================================================================================
+-- Notificaciones de despidos
+
+CREATE TABLE public.despido_notificaciones (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    despido_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    tipo_notificacion TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    leida BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.despido_notificaciones
+  ADD CONSTRAINT despido_notificaciones_despido_id_fkey
+  FOREIGN KEY (despido_id) REFERENCES public.despidos(id) ON DELETE CASCADE;
+
+-- Políticas RLS
+ALTER TABLE public.despido_notificaciones ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Ver propias notificaciones despidos"
+ON public.despido_notificaciones FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Actualizar propias notificaciones despidos"
+ON public.despido_notificaciones FOR UPDATE
+USING (auth.uid() = user_id);
+
+================================================================================
+TABLA: employee_activities
+================================================================================
+-- Actividades asignadas a empleados
+
+CREATE TABLE public.employee_activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'pendiente',
+    priority TEXT DEFAULT 'normal',
+    start_date DATE,
+    due_date DATE,
+    completion_date DATE,
+    progress_percentage INTEGER DEFAULT 0,
+    assigned_by UUID,
+    comments TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Políticas RLS
+ALTER TABLE public.employee_activities ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Empleados pueden actualizar progreso de sus actividades"
+ON public.employee_activities FOR UPDATE
+USING (auth.uid() = employee_id)
+WITH CHECK (auth.uid() = employee_id);
+
+================================================================================
+TABLA: employee_training
+================================================================================
+-- Capacitaciones asignadas a empleados
+
+CREATE TABLE public.employee_training (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL,
+    course_id UUID NOT NULL,
+    status TEXT NOT NULL DEFAULT 'asignado',
+    start_date DATE,
+    end_date DATE,
+    completion_date DATE,
+    progress_percentage INTEGER DEFAULT 0,
+    responsible_id UUID,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.employee_training
+  ADD CONSTRAINT employee_training_course_id_fkey
+  FOREIGN KEY (course_id) REFERENCES public.training_courses(id);
+
+ALTER TABLE public.employee_training ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: training_courses
+================================================================================
+-- Cursos de capacitación
+
+CREATE TABLE public.training_courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT,
+    provider TEXT,
+    duration_hours INTEGER,
+    status TEXT NOT NULL DEFAULT 'activo',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.training_courses ENABLE ROW LEVEL SECURITY;
 
 ================================================================================
 TABLA: incidents
@@ -470,7 +631,7 @@ WITH CHECK (auth.uid() = reported_by);
 ================================================================================
 TABLA: inventory_items
 ================================================================================
--- Inventario de artículos
+-- Inventario de artículos (EPP, equipos, herramientas, suministros)
 
 CREATE TABLE public.inventory_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -486,23 +647,75 @@ CREATE TABLE public.inventory_items (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Políticas RLS
+-- Políticas RLS ACTUALIZADAS (2025-11-25)
 ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Everyone can view inventory"
+CREATE POLICY "Allow all SELECT on inventory_items"
 ON public.inventory_items FOR SELECT
 USING (true);
 
-CREATE POLICY "Anyone can insert inventory items"
+CREATE POLICY "Allow all INSERT on inventory_items"
 ON public.inventory_items FOR INSERT
 WITH CHECK (true);
 
-CREATE POLICY "Anyone can update inventory items"
+CREATE POLICY "Allow all UPDATE on inventory_items"
 ON public.inventory_items FOR UPDATE
+USING (true)
+WITH CHECK (true);
+
+CREATE POLICY "Allow all DELETE on inventory_items"
+ON public.inventory_items FOR DELETE
 USING (true);
 
-CREATE POLICY "Anyone can delete inventory items"
-ON public.inventory_items FOR DELETE
+================================================================================
+TABLA: inventory_alerts
+================================================================================
+-- Alertas de inventario (stock bajo, mantenimiento, etc.)
+
+CREATE TABLE public.inventory_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id) ON DELETE CASCADE,
+    alert_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    is_resolved BOOLEAN DEFAULT false,
+    resolved_by UUID REFERENCES public.profiles(user_id),
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índice único para prevenir alertas duplicadas
+CREATE UNIQUE INDEX inventory_alerts_active_unique_idx 
+ON public.inventory_alerts (item_id, alert_type) 
+WHERE is_resolved = false;
+
+-- Foreign Keys
+ALTER TABLE public.inventory_alerts
+  ADD CONSTRAINT inventory_alerts_item_id_fkey
+  FOREIGN KEY (item_id) REFERENCES public.inventory_items(id) ON DELETE CASCADE;
+
+ALTER TABLE public.inventory_alerts
+  ADD CONSTRAINT inventory_alerts_resolved_by_fkey
+  FOREIGN KEY (resolved_by) REFERENCES public.profiles(user_id);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_alerts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view alerts"
+ON public.inventory_alerts FOR SELECT
+USING (true);
+
+CREATE POLICY "System can insert alerts"
+ON public.inventory_alerts FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update alerts"
+ON public.inventory_alerts FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete alerts"
+ON public.inventory_alerts FOR DELETE
 USING (true);
 
 ================================================================================
@@ -513,7 +726,7 @@ TABLA: inventory_assignments
 CREATE TABLE public.inventory_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
-    user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(user_id),
     quantity INTEGER NOT NULL,
     assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
     return_date DATE,
@@ -523,10 +736,23 @@ CREATE TABLE public.inventory_assignments (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.inventory_assignments
+  ADD CONSTRAINT inventory_assignments_item_id_fkey
+  FOREIGN KEY (item_id) REFERENCES public.inventory_items(id);
+
+ALTER TABLE public.inventory_assignments
+  ADD CONSTRAINT inventory_assignments_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES public.profiles(user_id);
+
 -- Políticas RLS
 ALTER TABLE public.inventory_assignments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their assignments"
+ON public.inventory_assignments FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "View own assignments"
 ON public.inventory_assignments FOR SELECT
 USING (auth.uid() = user_id);
 
@@ -543,6 +769,59 @@ ON public.inventory_assignments FOR DELETE
 USING (true);
 
 ================================================================================
+TABLA: inventory_maintenance
+================================================================================
+-- Mantenimientos de inventario
+
+CREATE TABLE public.inventory_maintenance (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
+    maintenance_type TEXT NOT NULL,
+    description TEXT,
+    scheduled_date DATE,
+    completed_date DATE,
+    status TEXT DEFAULT 'pendiente',
+    performed_by UUID REFERENCES public.profiles(user_id),
+    cost NUMERIC,
+    observations TEXT,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.inventory_maintenance
+  ADD CONSTRAINT inventory_maintenance_item_id_fkey
+  FOREIGN KEY (item_id) REFERENCES public.inventory_items(id);
+
+ALTER TABLE public.inventory_maintenance
+  ADD CONSTRAINT inventory_maintenance_performed_by_fkey
+  FOREIGN KEY (performed_by) REFERENCES public.profiles(user_id);
+
+-- Políticas RLS
+ALTER TABLE public.inventory_maintenance ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view maintenance records"
+ON public.inventory_maintenance FOR SELECT
+USING (true);
+
+CREATE POLICY "Everyone can view maintenance"
+ON public.inventory_maintenance FOR SELECT
+USING (true);
+
+CREATE POLICY "Anyone can insert maintenance"
+ON public.inventory_maintenance FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update maintenance"
+ON public.inventory_maintenance FOR UPDATE
+USING (true);
+
+CREATE POLICY "Anyone can delete maintenance"
+ON public.inventory_maintenance FOR DELETE
+USING (true);
+
+================================================================================
 TABLA: inventory_movements
 ================================================================================
 -- Movimientos de inventario (entradas, salidas, ajustes)
@@ -552,19 +831,34 @@ CREATE TABLE public.inventory_movements (
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
     movement_type TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
-    authorized_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
-    assignment_id UUID REFERENCES public.inventory_assignments(id),
     movement_date TIMESTAMPTZ DEFAULT now(),
-    observations TEXT,
+    user_id UUID REFERENCES public.profiles(user_id),
+    authorized_by UUID REFERENCES public.profiles(user_id),
+    assignment_id UUID REFERENCES public.inventory_assignments(id),
     condition_before TEXT,
     condition_after TEXT,
     damage_description TEXT,
+    observations TEXT,
     file_paths TEXT[],
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-COMMENT ON TABLE public.inventory_movements IS 'Historial de movimientos de inventario (entradas, salidas, ajustes)';
+-- Foreign Keys
+ALTER TABLE public.inventory_movements
+  ADD CONSTRAINT inventory_movements_item_id_fkey
+  FOREIGN KEY (item_id) REFERENCES public.inventory_items(id);
+
+ALTER TABLE public.inventory_movements
+  ADD CONSTRAINT inventory_movements_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES public.profiles(user_id);
+
+ALTER TABLE public.inventory_movements
+  ADD CONSTRAINT inventory_movements_authorized_by_fkey
+  FOREIGN KEY (authorized_by) REFERENCES public.profiles(user_id);
+
+ALTER TABLE public.inventory_movements
+  ADD CONSTRAINT inventory_movements_assignment_id_fkey
+  FOREIGN KEY (assignment_id) REFERENCES public.inventory_assignments(id);
 
 -- Políticas RLS
 ALTER TABLE public.inventory_movements ENABLE ROW LEVEL SECURITY;
@@ -586,101 +880,25 @@ ON public.inventory_movements FOR DELETE
 USING (true);
 
 ================================================================================
-TABLA: inventory_maintenance
-================================================================================
--- Mantenimientos de equipos e ítems
-
-CREATE TABLE public.inventory_maintenance (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
-    maintenance_type TEXT NOT NULL,
-    scheduled_date DATE,
-    completed_date DATE,
-    status TEXT DEFAULT 'pendiente',
-    description TEXT,
-    observations TEXT,
-    performed_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL, -- NULLABLE
-    cost NUMERIC,
-    file_paths TEXT[],
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-COMMENT ON TABLE public.inventory_maintenance IS 'Registros de mantenimiento de equipos e ítems';
-
--- Políticas RLS
-ALTER TABLE public.inventory_maintenance ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Everyone can view maintenance records"
-ON public.inventory_maintenance FOR SELECT
-USING (true);
-
-CREATE POLICY "Anyone can insert maintenance"
-ON public.inventory_maintenance FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Anyone can update maintenance"
-ON public.inventory_maintenance FOR UPDATE
-USING (true);
-
-CREATE POLICY "Anyone can delete maintenance"
-ON public.inventory_maintenance FOR DELETE
-USING (true);
-
-================================================================================
-TABLA: inventory_alerts
-================================================================================
--- Alertas de inventario (stock bajo, mantenimientos, etc.)
-
-CREATE TABLE public.inventory_alerts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    item_id UUID NOT NULL REFERENCES public.inventory_items(id),
-    alert_type TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    is_resolved BOOLEAN DEFAULT false,
-    resolved_at TIMESTAMPTZ,
-    resolved_by UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Políticas RLS
-ALTER TABLE public.inventory_alerts ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Everyone can view alerts"
-ON public.inventory_alerts FOR SELECT
-USING (true);
-
-CREATE POLICY "System can insert alerts"
-ON public.inventory_alerts FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Authenticated users can update alerts"
-ON public.inventory_alerts FOR UPDATE
-TO authenticated
-USING (true);
-
-CREATE POLICY "Authenticated users can delete alerts"
-ON public.inventory_alerts FOR DELETE
-TO authenticated
-USING (true);
-
-================================================================================
 TABLA: inventory_item_states
 ================================================================================
--- Historial de cambios de estado de ítems
+-- Estados históricos de items de inventario
 
 CREATE TABLE public.inventory_item_states (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_id UUID NOT NULL REFERENCES public.inventory_items(id),
     state TEXT NOT NULL,
     previous_state TEXT,
-    changed_by UUID NOT NULL,
     change_reason TEXT,
+    changed_by UUID NOT NULL,
     observations TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.inventory_item_states
+  ADD CONSTRAINT inventory_item_states_item_id_fkey
+  FOREIGN KEY (item_id) REFERENCES public.inventory_items(id);
 
 -- Políticas RLS
 ALTER TABLE public.inventory_item_states ENABLE ROW LEVEL SECURITY;
@@ -689,26 +907,105 @@ CREATE POLICY "Everyone can view item states"
 ON public.inventory_item_states FOR SELECT
 USING (true);
 
-CREATE POLICY "Authenticated users can insert item states"
+CREATE POLICY "Anyone can insert item states"
 ON public.inventory_item_states FOR INSERT
-TO authenticated
 WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can update item states"
+CREATE POLICY "Anyone can update item states"
 ON public.inventory_item_states FOR UPDATE
-TO authenticated
+USING (true);
+
+================================================================================
+TABLA: sh_sectors
+================================================================================
+-- Sectores de Seguridad e Higiene
+
+CREATE TABLE public.sh_sectors (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    responsible_id UUID,
+    risk_level TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.sh_sectors ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: sh_inspections
+================================================================================
+-- Inspecciones de Seguridad e Higiene
+
+CREATE TABLE public.sh_inspections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sector_id UUID NOT NULL REFERENCES public.sh_sectors(id),
+    inspector_id UUID NOT NULL,
+    scheduled_date DATE NOT NULL,
+    completed_date DATE,
+    status TEXT DEFAULT 'programada',
+    findings TEXT,
+    recommendations TEXT,
+    file_paths TEXT[],
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.sh_inspections
+  ADD CONSTRAINT sh_inspections_sector_id_fkey
+  FOREIGN KEY (sector_id) REFERENCES public.sh_sectors(id);
+
+ALTER TABLE public.sh_inspections ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: inspection_progress
+================================================================================
+-- Progreso de inspecciones
+
+CREATE TABLE public.inspection_progress (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    inspection_id UUID NOT NULL REFERENCES public.sh_inspections(id),
+    total_items INTEGER DEFAULT 0,
+    completed_items INTEGER DEFAULT 0,
+    pending_items INTEGER DEFAULT 0,
+    approved_items INTEGER DEFAULT 0,
+    rejected_items INTEGER DEFAULT 0,
+    completion_percentage INTEGER,
+    approval_percentage INTEGER,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.inspection_progress
+  ADD CONSTRAINT inspection_progress_inspection_id_fkey
+  FOREIGN KEY (inspection_id) REFERENCES public.sh_inspections(id);
+
+-- Políticas RLS
+ALTER TABLE public.inspection_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view progress"
+ON public.inspection_progress FOR SELECT
+USING (true);
+
+CREATE POLICY "System can insert inspection progress"
+ON public.inspection_progress FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can update inspection progress"
+ON public.inspection_progress FOR UPDATE
 USING (true);
 
 ================================================================================
 TABLA: sh_checklists
 ================================================================================
--- Listas de verificación reutilizables
+-- Checklists de Seguridad e Higiene
 
 CREATE TABLE public.sh_checklists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    description TEXT,
     category TEXT NOT NULL,
+    description TEXT,
     items JSONB NOT NULL DEFAULT '[]',
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -722,41 +1019,38 @@ CREATE POLICY "Everyone can view checklists"
 ON public.sh_checklists FOR SELECT
 USING (true);
 
-CREATE POLICY "Authenticated users can insert checklists"
+CREATE POLICY "Anyone can insert checklists"
 ON public.sh_checklists FOR INSERT
-TO authenticated
 WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can update checklists"
+CREATE POLICY "Anyone can update checklists"
 ON public.sh_checklists FOR UPDATE
-TO authenticated
 USING (true);
 
-CREATE POLICY "Authenticated users can delete checklists"
+CREATE POLICY "Anyone can delete checklists"
 ON public.sh_checklists FOR DELETE
-TO authenticated
 USING (true);
 
 ================================================================================
 TABLA: sh_area_evaluations
 ================================================================================
--- Evaluaciones de áreas de seguridad e higiene
+-- Evaluaciones de áreas
 
 CREATE TABLE public.sh_area_evaluations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sector_id UUID NOT NULL REFERENCES public.sh_sectors(id),
     evaluated_by UUID NOT NULL,
     evaluation_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    cleanliness_score INTEGER,
     order_score INTEGER,
+    cleanliness_score INTEGER,
     lighting_score INTEGER,
     ventilation_score INTEGER,
     signage_score INTEGER,
     ergonomics_score INTEGER,
-    tools_condition_score INTEGER,
     furniture_condition_score INTEGER,
-    hazmat_control_score INTEGER,
+    tools_condition_score INTEGER,
     risk_control_score INTEGER,
+    hazmat_control_score INTEGER,
     compliance_score INTEGER,
     total_score INTEGER,
     average_score INTEGER,
@@ -769,13 +1063,8 @@ CREATE TABLE public.sh_area_evaluations (
 
 -- Foreign Keys
 ALTER TABLE public.sh_area_evaluations
-  ADD CONSTRAINT sh_area_evaluations_evaluated_by_fkey
-  FOREIGN KEY (evaluated_by) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
-
--- Índices
-CREATE INDEX idx_sh_area_evaluations_sector_id ON public.sh_area_evaluations(sector_id);
-CREATE INDEX idx_sh_area_evaluations_evaluated_by ON public.sh_area_evaluations(evaluated_by);
-CREATE INDEX idx_sh_area_evaluations_evaluation_date ON public.sh_area_evaluations(evaluation_date);
+  ADD CONSTRAINT sh_area_evaluations_sector_id_fkey
+  FOREIGN KEY (sector_id) REFERENCES public.sh_sectors(id);
 
 -- Políticas RLS
 ALTER TABLE public.sh_area_evaluations ENABLE ROW LEVEL SECURITY;
@@ -784,54 +1073,133 @@ CREATE POLICY "Everyone can view area evaluations"
 ON public.sh_area_evaluations FOR SELECT
 USING (true);
 
-CREATE POLICY "Authenticated users can insert area evaluations"
+CREATE POLICY "Anyone can insert area evaluations"
 ON public.sh_area_evaluations FOR INSERT
-TO authenticated
 WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can update area evaluations"
+CREATE POLICY "Anyone can update area evaluations"
 ON public.sh_area_evaluations FOR UPDATE
-TO authenticated
 USING (true);
 
-CREATE POLICY "Authenticated users can delete area evaluations"
+CREATE POLICY "Anyone can delete area evaluations"
 ON public.sh_area_evaluations FOR DELETE
-TO authenticated
 USING (true);
 
 ================================================================================
-TABLA: inspection_progress
+TABLA: job_vacancies
 ================================================================================
--- Progreso de inspecciones
+-- Vacantes de empleo
 
-CREATE TABLE public.inspection_progress (
+CREATE TABLE public.job_vacancies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    inspection_id UUID NOT NULL UNIQUE REFERENCES public.sh_inspections(id),
-    total_items INTEGER DEFAULT 0,
-    completed_items INTEGER DEFAULT 0,
-    pending_items INTEGER DEFAULT 0,
-    approved_items INTEGER DEFAULT 0,
-    rejected_items INTEGER DEFAULT 0,
-    completion_percentage INTEGER,
-    approval_percentage INTEGER,
-    updated_at TIMESTAMPTZ DEFAULT now()
+    area_id UUID NOT NULL REFERENCES public.areas(id),
+    position_title TEXT NOT NULL,
+    description TEXT,
+    requirements TEXT,
+    salary_range_min NUMERIC,
+    salary_range_max NUMERIC,
+    status TEXT NOT NULL DEFAULT 'abierta',
+    priority TEXT DEFAULT 'normal',
+    created_by UUID,
+    closed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Políticas RLS
-ALTER TABLE public.inspection_progress ENABLE ROW LEVEL SECURITY;
+-- Foreign Keys
+ALTER TABLE public.job_vacancies
+  ADD CONSTRAINT job_vacancies_area_id_fkey
+  FOREIGN KEY (area_id) REFERENCES public.areas(id);
 
-CREATE POLICY "Everyone can view progress"
-ON public.inspection_progress FOR SELECT
-USING (true);
+ALTER TABLE public.job_vacancies ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "System can insert inspection progress"
-ON public.inspection_progress FOR INSERT
-WITH CHECK (true);
+================================================================================
+TABLA: vacancy_applications
+================================================================================
+-- Postulaciones a vacantes
 
-CREATE POLICY "Authenticated users can update inspection progress"
-ON public.inspection_progress FOR UPDATE
-TO authenticated
-USING (true);
+CREATE TABLE public.vacancy_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vacancy_id UUID NOT NULL REFERENCES public.job_vacancies(id) ON DELETE CASCADE,
+    applicant_id UUID,
+    applicant_name TEXT NOT NULL,
+    applicant_email TEXT NOT NULL,
+    applicant_phone TEXT,
+    cover_letter TEXT,
+    resume_path TEXT,
+    status TEXT NOT NULL DEFAULT 'pendiente',
+    reviewed_by UUID,
+    reviewed_at TIMESTAMPTZ,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.vacancy_applications
+  ADD CONSTRAINT vacancy_applications_vacancy_id_fkey
+  FOREIGN KEY (vacancy_id) REFERENCES public.job_vacancies(id) ON DELETE CASCADE;
+
+ALTER TABLE public.vacancy_applications ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: promotions
+================================================================================
+-- Promociones de empleados
+
+CREATE TABLE public.promotions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL,
+    current_position TEXT NOT NULL,
+    target_position TEXT NOT NULL,
+    current_area_id UUID REFERENCES public.areas(id),
+    target_area_id UUID REFERENCES public.areas(id),
+    status TEXT NOT NULL DEFAULT 'propuesta',
+    justification TEXT,
+    proposed_date DATE,
+    approved_date DATE,
+    approved_by UUID,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Foreign Keys
+ALTER TABLE public.promotions
+  ADD CONSTRAINT promotions_current_area_id_fkey
+  FOREIGN KEY (current_area_id) REFERENCES public.areas(id);
+
+ALTER TABLE public.promotions
+  ADD CONSTRAINT promotions_target_area_id_fkey
+  FOREIGN KEY (target_area_id) REFERENCES public.areas(id);
+
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+
+================================================================================
+TABLA: performance_evaluations
+================================================================================
+-- Evaluaciones de desempeño
+
+CREATE TABLE public.performance_evaluations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL,
+    evaluator_id UUID NOT NULL,
+    evaluation_period_start DATE NOT NULL,
+    evaluation_period_end DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'borrador',
+    overall_score NUMERIC,
+    technical_skills_score NUMERIC,
+    soft_skills_score NUMERIC,
+    productivity_score NUMERIC,
+    strengths TEXT,
+    areas_for_improvement TEXT,
+    goals TEXT,
+    comments TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.performance_evaluations ENABLE ROW LEVEL SECURITY;
 
 ================================================================================
 TABLA: notifications
@@ -841,9 +1209,9 @@ TABLA: notifications
 CREATE TABLE public.notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
+    type TEXT NOT NULL,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
-    type TEXT NOT NULL,
     link TEXT,
     is_read BOOLEAN DEFAULT false,
     read_at TIMESTAMPTZ,
@@ -853,8 +1221,16 @@ CREATE TABLE public.notifications (
 -- Políticas RLS
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "View own notifications"
+ON public.notifications FOR SELECT
+USING (auth.uid() = user_id);
+
 CREATE POLICY "Users can view their notifications"
 ON public.notifications FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Update own notifications"
+ON public.notifications FOR UPDATE
 USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their notifications"
@@ -887,7 +1263,7 @@ ALTER TABLE public.recruitment_positions ENABLE ROW LEVEL SECURITY;
 ================================================================================
 TABLA: recruitment_candidates
 ================================================================================
--- Candidatos en proceso de reclutamiento
+-- Candidatos de reclutamiento
 
 CREATE TABLE public.recruitment_candidates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -895,11 +1271,11 @@ CREATE TABLE public.recruitment_candidates (
     email TEXT NOT NULL,
     phone TEXT,
     current_location TEXT,
-    resume_url TEXT,
-    source TEXT,
     seniority TEXT,
+    source TEXT,
     status TEXT NOT NULL DEFAULT 'nuevo',
     assigned_recruiter UUID,
+    resume_url TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
@@ -910,7 +1286,7 @@ ALTER TABLE public.recruitment_candidates ENABLE ROW LEVEL SECURITY;
 ================================================================================
 TABLA: recruitment_applications
 ================================================================================
--- Aplicaciones de candidatos a posiciones
+-- Aplicaciones de reclutamiento
 
 CREATE TABLE public.recruitment_applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -918,14 +1294,23 @@ CREATE TABLE public.recruitment_applications (
     position_id UUID REFERENCES public.recruitment_positions(id),
     status TEXT NOT NULL DEFAULT 'en_revision',
     current_stage TEXT DEFAULT 'screening',
-    hiring_manager UUID,
-    salary_expectation NUMERIC,
-    availability_date DATE,
     priority TEXT DEFAULT 'media',
+    availability_date DATE,
+    salary_expectation NUMERIC,
+    hiring_manager UUID,
     created_by UUID,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Foreign Keys
+ALTER TABLE public.recruitment_applications
+  ADD CONSTRAINT recruitment_applications_candidate_id_fkey
+  FOREIGN KEY (candidate_id) REFERENCES public.recruitment_candidates(id);
+
+ALTER TABLE public.recruitment_applications
+  ADD CONSTRAINT recruitment_applications_position_id_fkey
+  FOREIGN KEY (position_id) REFERENCES public.recruitment_positions(id);
 
 ALTER TABLE public.recruitment_applications ENABLE ROW LEVEL SECURITY;
 
@@ -951,6 +1336,11 @@ CREATE TABLE public.recruitment_interviews (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Foreign Keys
+ALTER TABLE public.recruitment_interviews
+  ADD CONSTRAINT recruitment_interviews_application_id_fkey
+  FOREIGN KEY (application_id) REFERENCES public.recruitment_applications(id);
+
 -- Políticas RLS
 ALTER TABLE public.recruitment_interviews ENABLE ROW LEVEL SECURITY;
 
@@ -963,105 +1353,84 @@ USING (EXISTS (
 ));
 
 ================================================================================
-TABLA: sh_sectors
+TABLA: recruitment_interview_participants
 ================================================================================
--- Sectores de seguridad e higiene
+-- Participantes en entrevistas
 
-CREATE TABLE public.sh_sectors (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    description TEXT,
-    risk_level TEXT,
-    responsible_id UUID,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+CREATE TABLE public.recruitment_interview_participants (
+    interview_id UUID NOT NULL REFERENCES public.recruitment_interviews(id),
+    participant_id UUID NOT NULL,
+    participant_role TEXT NOT NULL,
+    response_status TEXT DEFAULT 'pendiente',
+    PRIMARY KEY (interview_id, participant_id)
 );
 
 -- Foreign Keys
-ALTER TABLE public.sh_sectors
-  ADD CONSTRAINT sh_sectors_responsible_id_fkey
-  FOREIGN KEY (responsible_id) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
-
--- Índices
-CREATE INDEX idx_sh_sectors_name ON public.sh_sectors(name);
-CREATE INDEX idx_sh_sectors_risk_level ON public.sh_sectors(risk_level);
-CREATE INDEX idx_sh_sectors_responsible_id ON public.sh_sectors(responsible_id);
+ALTER TABLE public.recruitment_interview_participants
+  ADD CONSTRAINT recruitment_interview_participants_interview_id_fkey
+  FOREIGN KEY (interview_id) REFERENCES public.recruitment_interviews(id);
 
 -- Políticas RLS
-ALTER TABLE public.sh_sectors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recruitment_interview_participants ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Everyone can view sectors"
-ON public.sh_sectors FOR SELECT
-USING (true);
-
-CREATE POLICY "Anyone can insert sectors"
-ON public.sh_sectors FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Anyone can update sectors"
-ON public.sh_sectors FOR UPDATE
-USING (true);
-
-CREATE POLICY "Anyone can delete sectors"
-ON public.sh_sectors FOR DELETE
-USING (true);
+CREATE POLICY "Participants view their rows"
+ON public.recruitment_interview_participants FOR SELECT
+USING (participant_id = auth.uid());
 
 ================================================================================
-TABLA: sh_inspections
+TABLA: recruitment_notes
 ================================================================================
--- Inspecciones de seguridad e higiene
+-- Notas de reclutamiento
 
-CREATE TABLE public.sh_inspections (
+CREATE TABLE public.recruitment_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sector_id UUID NOT NULL REFERENCES public.sh_sectors(id),
-    inspector_id UUID NOT NULL,
-    scheduled_date DATE NOT NULL,
-    completed_date DATE,
-    status TEXT DEFAULT 'programada',
-    findings TEXT,
-    recommendations TEXT,
-    file_paths TEXT[],
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+    application_id UUID REFERENCES public.recruitment_applications(id),
+    interview_id UUID REFERENCES public.recruitment_interviews(id),
+    author_id UUID NOT NULL,
+    content TEXT NOT NULL,
+    visibility TEXT DEFAULT 'rrhh',
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Foreign Keys
-ALTER TABLE public.sh_inspections
-  ADD CONSTRAINT sh_inspections_inspector_id_fkey
-  FOREIGN KEY (inspector_id) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
+ALTER TABLE public.recruitment_notes
+  ADD CONSTRAINT recruitment_notes_application_id_fkey
+  FOREIGN KEY (application_id) REFERENCES public.recruitment_applications(id);
 
--- Índices
-CREATE INDEX idx_sh_inspections_sector_id ON public.sh_inspections(sector_id);
-CREATE INDEX idx_sh_inspections_inspector_id ON public.sh_inspections(inspector_id);
-CREATE INDEX idx_sh_inspections_scheduled_date ON public.sh_inspections(scheduled_date);
-CREATE INDEX idx_sh_inspections_status ON public.sh_inspections(status);
+ALTER TABLE public.recruitment_notes
+  ADD CONSTRAINT recruitment_notes_interview_id_fkey
+  FOREIGN KEY (interview_id) REFERENCES public.recruitment_interviews(id);
 
--- Políticas RLS
-ALTER TABLE public.sh_inspections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recruitment_notes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Everyone can view inspections"
-ON public.sh_inspections FOR SELECT
-USING (true);
+================================================================================
+TABLA: recruitment_files
+================================================================================
+-- Archivos de reclutamiento
 
-CREATE POLICY "Anyone can insert inspections"
-ON public.sh_inspections FOR INSERT
-WITH CHECK (true);
+CREATE TABLE public.recruitment_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    candidate_id UUID NOT NULL REFERENCES public.recruitment_candidates(id),
+    file_path TEXT NOT NULL,
+    file_type TEXT DEFAULT 'otro',
+    file_size BIGINT,
+    mime_type TEXT,
+    uploaded_by UUID,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
 
-CREATE POLICY "Anyone can update inspections"
-ON public.sh_inspections FOR UPDATE
-USING (true);
+-- Foreign Keys
+ALTER TABLE public.recruitment_files
+  ADD CONSTRAINT recruitment_files_candidate_id_fkey
+  FOREIGN KEY (candidate_id) REFERENCES public.recruitment_candidates(id);
 
-CREATE POLICY "Anyone can delete inspections"
-ON public.sh_inspections FOR DELETE
-USING (true);
+ALTER TABLE public.recruitment_files ENABLE ROW LEVEL SECURITY;
 
 ================================================================================
 FUNCIONES DE BASE DE DATOS
 ================================================================================
 
--- Función: get_current_user_id()
--- Obtiene el ID del usuario actual desde el token de sesión
-
+-- Función para obtener el ID del usuario actual desde el token de sesión
 CREATE OR REPLACE FUNCTION public.get_current_user_id()
 RETURNS UUID
 LANGUAGE plpgsql
@@ -1072,12 +1441,14 @@ DECLARE
   session_token TEXT;
   user_id_result UUID;
 BEGIN
+  -- Intentar obtener token del header personalizado
   session_token := current_setting('request.headers', true)::json->>'x-session-token';
   
   IF session_token IS NULL OR session_token = '' THEN
     RETURN NULL;
   END IF;
   
+  -- Buscar sesión válida y actualizar last_active
   UPDATE public.user_sessions
   SET last_active_at = now()
   WHERE token = session_token
@@ -1091,43 +1462,7 @@ EXCEPTION
 END;
 $$;
 
--- Función: has_role(_user_id, _role)
--- Verifica si un usuario tiene un rol específico
-
-CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role = _role
-  )
-$$;
-
--- Función: is_system_user(_user_id)
--- Verifica si un usuario es administrador del sistema
-
-CREATE OR REPLACE FUNCTION public.is_system_user(_user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role IN ('superadmin', 'admin_rrhh')
-  )
-$$;
-
--- Función: cleanup_expired_sessions()
--- Limpia sesiones expiradas
-
+-- Función para limpiar sesiones expiradas
 CREATE OR REPLACE FUNCTION public.cleanup_expired_sessions()
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -1145,81 +1480,37 @@ BEGIN
 END;
 $$;
 
--- Función: update_updated_at_column()
--- Trigger function para actualizar automáticamente updated_at
-
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
+-- Función para verificar si un usuario tiene un rol específico
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = _role
+  )
 $$;
 
--- Función: get_all_users(session_token)
--- Obtiene todos los usuarios (solo para superadmin)
-
-CREATE OR REPLACE FUNCTION public.get_all_users(session_token TEXT)
-RETURNS TABLE(
-  id UUID,
-  email TEXT,
-  username TEXT,
-  full_name TEXT,
-  phone TEXT,
-  status TEXT,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  last_login_at TIMESTAMPTZ,
-  role TEXT
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
+-- Función para verificar si un usuario es administrador
+CREATE OR REPLACE FUNCTION public.is_system_user(_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-DECLARE
-  current_user_id UUID;
-BEGIN
-  SELECT user_id INTO current_user_id
-  FROM public.user_sessions
-  WHERE token = session_token
-    AND expires_at > now();
-  
-  IF current_user_id IS NULL THEN
-    RAISE EXCEPTION 'Invalid or expired session token';
-  END IF;
-  
-  IF NOT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = current_user_id AND role = 'superadmin'
-  ) THEN
-    RAISE EXCEPTION 'Unauthorized: only superadmin can view users';
-  END IF;
-  
-  RETURN QUERY
-  SELECT 
-    u.id,
-    u.email,
-    u.username,
-    u.full_name,
-    u.phone,
-    u.status,
-    u.created_at,
-    u.updated_at,
-    u.last_login_at,
-    COALESCE(ur.role::TEXT, 'admin_rrhh') as role
-  FROM public.users u
-  LEFT JOIN public.user_roles ur ON ur.user_id = u.id
-  ORDER BY u.created_at DESC;
-END;
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role IN ('superadmin', 'admin_rrhh')
+  )
 $$;
 
--- Función: delete_user_safe(session_token, user_id_to_delete)
--- Elimina un usuario de forma segura con validaciones
-
+-- Función para eliminar usuarios de forma segura
 CREATE OR REPLACE FUNCTION public.delete_user_safe(session_token TEXT, user_id_to_delete UUID)
 RETURNS JSON
 LANGUAGE plpgsql
@@ -1284,7 +1575,7 @@ BEGIN
     END IF;
   END IF;
   
-  -- Registrar en auditoría ANTES de eliminar (para evitar problemas de FK)
+  -- Registrar en auditoría ANTES de eliminar
   INSERT INTO public.audit_logs (
     user_id,
     action,
@@ -1316,70 +1607,165 @@ EXCEPTION
 END;
 $$;
 
+-- Función para generar alertas de stock bajo (trigger automático)
+CREATE OR REPLACE FUNCTION public.generate_low_stock_alerts()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  alert_severity text;
+BEGIN
+  -- Si el stock está por debajo del mínimo, crear o actualizar alerta
+  IF NEW.stock_quantity <= NEW.min_stock THEN
+    -- Determinar severidad
+    IF NEW.stock_quantity = 0 THEN
+      alert_severity := 'critica';
+    ELSIF NEW.stock_quantity <= NEW.min_stock * 0.5 THEN
+      alert_severity := 'alta';
+    ELSE
+      alert_severity := 'media';
+    END IF;
+
+    -- Primero resolver cualquier alerta existente
+    UPDATE public.inventory_alerts
+    SET is_resolved = true, resolved_at = now()
+    WHERE item_id = NEW.id 
+      AND alert_type = 'stock_bajo' 
+      AND is_resolved = false;
+
+    -- Luego crear nueva alerta
+    INSERT INTO public.inventory_alerts (
+      item_id,
+      alert_type,
+      severity,
+      title,
+      description,
+      is_resolved
+    )
+    VALUES (
+      NEW.id,
+      'stock_bajo',
+      alert_severity,
+      'Stock bajo: ' || NEW.name,
+      'El stock actual (' || NEW.stock_quantity || ') está por debajo del mínimo requerido (' || NEW.min_stock || ')',
+      false
+    );
+  ELSE
+    -- Si el stock está OK, resolver cualquier alerta activa
+    UPDATE public.inventory_alerts
+    SET is_resolved = true, resolved_at = now()
+    WHERE item_id = NEW.id 
+      AND alert_type = 'stock_bajo' 
+      AND is_resolved = false;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Función para actualizar timestamps (genérica)
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+-- Función específica para attendance_records
+CREATE OR REPLACE FUNCTION public.attendance_records_set_timestamp()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+-- Función para actualizar despidos
+CREATE OR REPLACE FUNCTION public.update_despidos_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 ================================================================================
 TRIGGERS
 ================================================================================
 
--- Trigger: update_areas_updated_at
-CREATE TRIGGER update_areas_updated_at
-BEFORE UPDATE ON public.areas
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger: attendance_records_set_timestamp
-CREATE TRIGGER attendance_records_set_timestamp
-BEFORE UPDATE ON public.attendance_records
-FOR EACH ROW
-EXECUTE FUNCTION attendance_records_set_timestamp();
-
--- Trigger: update_biometric_templates_updated_at
-CREATE TRIGGER update_biometric_templates_updated_at
-BEFORE UPDATE ON public.biometric_templates
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger: update_contracts_updated_at
-CREATE TRIGGER update_contracts_updated_at
-BEFORE UPDATE ON public.contracts
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger: update_profiles_updated_at
-CREATE TRIGGER update_profiles_updated_at
-BEFORE UPDATE ON public.profiles
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- Nota: Muchas otras tablas tienen triggers similares para updated_at
+-- Trigger para generar alertas automáticas de stock bajo
+CREATE TRIGGER generate_alerts_on_stock_change
+  AFTER INSERT OR UPDATE ON public.inventory_items
+  FOR EACH ROW
+  EXECUTE FUNCTION public.generate_low_stock_alerts();
 
 ================================================================================
-ÍNDICES IMPORTANTES
+STORAGE BUCKETS
 ================================================================================
 
-CREATE INDEX idx_users_email ON public.users(email);
-CREATE INDEX idx_users_username ON public.users(username);
-CREATE INDEX idx_users_status ON public.users(status);
-CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
-CREATE INDEX idx_user_roles_role ON public.user_roles(role);
-CREATE INDEX idx_user_sessions_token ON public.user_sessions(token);
-CREATE INDEX idx_user_sessions_user_id ON public.user_sessions(user_id);
-CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions(expires_at);
+-- Bucket para contratos
+Bucket: contracts
+Public: No
+
+-- Bucket para documentos
+Bucket: documents
+Public: No
+
+-- Bucket para incidentes
+Bucket: incidents
+Public: No
+
+-- Bucket para inspecciones
+Bucket: inspections
+Public: No
+
+-- Bucket para despidos
+Bucket: despidos
+Public: No
 
 ================================================================================
-NOTAS DE SEGURIDAD
+NOTAS IMPORTANTES
 ================================================================================
 
-1. Las tablas users y user_roles NO tienen RLS habilitado para permitir 
-   consultas directas desde la aplicación.
+1. AUTENTICACIÓN PERSONALIZADA:
+   - El sistema usa autenticación personalizada con tokens de sesión
+   - El header 'x-session-token' es crítico para RLS
+   - La función get_current_user_id() extrae el user_id del token
 
-2. La autenticación se maneja mediante tokens de sesión en la tabla 
-   user_sessions, no mediante Supabase Auth.
+2. ROW LEVEL SECURITY (RLS):
+   - Las tablas users y user_roles tienen RLS DESHABILITADO para permitir
+     gestión por administradores
+   - La mayoría de las tablas del módulo de Seguridad e Higiene tienen
+     políticas permisivas (true) para acceso completo
+   - Inventory_items tiene políticas PERMISSIVE actualizadas (2025-11-25)
 
-3. Los roles se validan mediante las funciones has_role() e is_system_user().
+3. INVENTARIO:
+   - Trigger automático genera alertas cuando stock <= min_stock
+   - Índice único previene alertas duplicadas activas
+   - Las alertas se resuelven automáticamente cuando el stock se normaliza
 
-4. Las contraseñas se almacenan hasheadas en password_hash usando PBKDF2.
+4. CLIENTES SUPABASE:
+   - Usar SIEMPRE @/lib/supabase-with-auth para consultas desde frontend
+   - NO usar @/integrations/supabase/client (no incluye x-session-token)
 
-5. Las plantillas biométricas están encriptadas con AES-256.
+5. ROLES DEL SISTEMA:
+   - superadmin: Control total del sistema
+   - admin_rrhh: Acceso a todos los módulos HR
 
 ================================================================================
 FIN DEL ESQUEMA
