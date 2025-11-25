@@ -48,14 +48,29 @@ export default function UserForm() {
     queryKey: ['user', id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await (supabase as any)
-        .from('profiles')
+      
+      // Obtener datos del usuario
+      const { data: userData, error: userError } = await (supabase as any)
+        .from('users')
         .select('*')
         .eq('id', id)
         .single();
 
-      if (error) throw error;
-      return data;
+      if (userError) throw userError;
+
+      // Obtener rol del usuario
+      const { data: roleData, error: roleError } = await (supabase as any)
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', id)
+        .single();
+
+      if (roleError) console.log('No role found for user');
+
+      return {
+        ...userData,
+        role: roleData?.role || 'admin_rrhh'
+      };
     },
     enabled: isEditMode,
   });
@@ -90,8 +105,9 @@ export default function UserForm() {
   const mutation = useMutation({
     mutationFn: async (data: UserFormData) => {
       if (isEditMode) {
-        const { error } = await (supabase as any)
-          .from('profiles')
+        // Actualizar usuario en la tabla users
+        const { error: userError } = await (supabase as any)
+          .from('users')
           .update({
             full_name: data.full_name,
             email: data.email,
@@ -100,7 +116,7 @@ export default function UserForm() {
           })
           .eq('id', id);
 
-        if (error) throw error;
+        if (userError) throw userError;
       } else {
         const sessionToken = getSessionToken();
         
@@ -127,22 +143,6 @@ export default function UserForm() {
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Error al crear usuario');
-        }
-
-        const result = await response.json();
-        
-        if (result.user?.id) {
-          const { error: profileError } = await (supabase as any)
-            .from('profiles')
-            .upsert({
-              user_id: result.user.id,
-              full_name: data.full_name,
-              email: data.email,
-              phone: data.phone,
-              status: data.status,
-            });
-
-          if (profileError) throw profileError;
         }
       }
     },

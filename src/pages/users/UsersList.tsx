@@ -20,13 +20,31 @@ export default function UsersList() {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('profiles')
+      // Primero obtener los usuarios
+      const { data: usersData, error: usersError } = await (supabase as any)
+        .from('users')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (usersError) throw usersError;
+
+      // Luego obtener los roles de cada usuario
+      const { data: rolesData, error: rolesError } = await (supabase as any)
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) throw rolesError;
+
+      // Combinar usuarios con sus roles
+      const usersWithRoles = usersData.map((user: any) => {
+        const userRole = rolesData.find((r: any) => r.user_id === user.id);
+        return {
+          ...user,
+          role: userRole?.role || 'admin_rrhh'
+        };
+      });
+
+      return usersWithRoles || [];
     },
   });
 
@@ -36,16 +54,28 @@ export default function UsersList() {
       accessorKey: 'full_name' as const,
     },
     {
+      header: 'Usuario',
+      accessorKey: 'username' as const,
+    },
+    {
       header: 'Email',
       accessorKey: 'email' as const,
     },
     {
-      header: 'Departamento',
-      accessorKey: 'department' as const,
+      header: 'Teléfono',
+      accessorKey: 'phone' as const,
     },
     {
-      header: 'Posición',
-      accessorKey: 'position' as const,
+      header: 'Rol',
+      accessorKey: 'role' as const,
+      cell: (value: string) => {
+        const roleMap: Record<string, { label: string; variant: 'default' | 'success' }> = {
+          superadmin: { label: 'Administrador', variant: 'success' },
+          admin_rrhh: { label: 'RH', variant: 'default' },
+        };
+        const role = roleMap[value] || { label: value, variant: 'default' };
+        return <Badge variant={role.variant}>{role.label}</Badge>;
+      },
     },
     {
       header: 'Estado',

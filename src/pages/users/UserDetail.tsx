@@ -17,14 +17,28 @@ export default function UserDetail() {
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('profiles')
+      // Obtener datos del usuario
+      const { data: userData, error: userError } = await (supabase as any)
+        .from('users')
         .select('*')
         .eq('id', id)
         .single();
 
-      if (error) throw error;
-      return data;
+      if (userError) throw userError;
+
+      // Obtener rol del usuario
+      const { data: roleData, error: roleError } = await (supabase as any)
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', id)
+        .single();
+
+      if (roleError) console.log('No role found for user');
+
+      return {
+        ...userData,
+        role: roleData?.role || 'admin_rrhh'
+      };
     },
   });
 
@@ -82,7 +96,7 @@ export default function UserDetail() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
+            <CardTitle>Información del Usuario</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
@@ -90,6 +104,14 @@ export default function UserDetail() {
               <div>
                 <p className="text-sm text-muted-foreground">Email</p>
                 <p className="font-medium">{user.email}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Briefcase className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Nombre de Usuario</p>
+                <p className="font-medium">{user.username}</p>
               </div>
             </div>
 
@@ -103,31 +125,17 @@ export default function UserDetail() {
               </div>
             )}
 
-            {user.address && (
-              <div className="flex items-center gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Dirección</p>
-                  <p className="font-medium">{user.address}</p>
-                </div>
-              </div>
-            )}
-
-            {user.birth_date && (
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Fecha de Nacimiento</p>
-                  <p className="font-medium">{new Date(user.birth_date).toLocaleDateString('es-ES')}</p>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <Badge variant={user.role === 'superadmin' ? 'success' : 'default'}>
+                {user.role === 'superadmin' ? 'Administrador' : 'RH'}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Información Laboral</CardTitle>
+            <CardTitle>Información del Sistema</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {user.department && (
@@ -140,44 +148,35 @@ export default function UserDetail() {
               </div>
             )}
 
-            {user.hire_date && (
+            {user.position && (
               <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <Briefcase className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Fecha de Contratación</p>
-                  <p className="font-medium">{new Date(user.hire_date).toLocaleDateString('es-ES')}</p>
+                  <p className="text-sm text-muted-foreground">Posición</p>
+                  <p className="font-medium">{user.position}</p>
                 </div>
               </div>
             )}
+
+            {user.last_login_at && (
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Último Acceso</p>
+                  <p className="font-medium">{new Date(user.last_login_at).toLocaleString('es-ES')}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Creado</p>
+                <p className="font-medium">{new Date(user.created_at).toLocaleDateString('es-ES')}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-
-        {(user.emergency_contact_name || user.emergency_contact_phone) && (
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Contacto de Emergencia</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              {user.emergency_contact_name && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Nombre</p>
-                  <p className="font-medium">{user.emergency_contact_name}</p>
-                </div>
-              )}
-              {user.emergency_contact_phone && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Teléfono</p>
-                  <p className="font-medium">{user.emergency_contact_phone}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Estado Biométrico */}
-        <div className="md:col-span-2">
-          <BiometricStatus userId={user.user_id} userEmail={user.email} />
-        </div>
       </div>
     </div>
   );
