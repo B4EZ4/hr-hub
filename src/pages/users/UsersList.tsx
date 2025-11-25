@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase-with-auth';
+import { getSessionToken } from '@/lib/auth';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,31 +21,15 @@ export default function UsersList() {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      // Primero obtener los usuarios
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const token = getSessionToken();
+      if (!token) throw new Error('No session token');
 
-      if (usersError) throw usersError;
-
-      // Luego obtener los roles de cada usuario
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      // Combinar usuarios con sus roles
-      const usersWithRoles = usersData.map((user: any) => {
-        const userRole = rolesData.find((r: any) => r.user_id === user.id);
-        return {
-          ...user,
-          role: userRole?.role || 'admin_rrhh'
-        };
+      const { data, error } = await supabase.rpc('get_all_users', {
+        session_token: token
       });
 
-      return usersWithRoles || [];
+      if (error) throw error;
+      return data || [];
     },
   });
 
