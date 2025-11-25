@@ -1978,7 +1978,7 @@ export type Database = {
           email: string
           failed_login_attempts?: number
           full_name: string
-          id: string
+          id?: string
           is_locked?: boolean
           is_verified?: boolean
           last_login_at?: string | null
@@ -2165,15 +2165,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_system_user: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role:
-        | "superadmin"
-        | "admin_rrhh"
-        | "manager"
-        | "empleado"
-        | "oficial_sh"
-        | "auditor"
+      app_role: "superadmin" | "admin_rrhh"
       document_status: "pendiente" | "validado" | "rechazado"
     }
     CompositeTypes: {
@@ -2302,14 +2297,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: [
-        "superadmin",
-        "admin_rrhh",
-        "manager",
-        "empleado",
-        "oficial_sh",
-        "auditor",
-      ],
+      app_role: ["superadmin", "admin_rrhh"],
       document_status: ["pendiente", "validado", "rechazado"],
     },
   },
