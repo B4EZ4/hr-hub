@@ -21,15 +21,36 @@ export default function UsersList() {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const token = getSessionToken();
-      if (!token) throw new Error('No session token');
+      // Consulta directa a la tabla users
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      const { data, error } = await supabase.rpc('get_all_users', {
-        session_token: token
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+        throw usersError;
+      }
+
+      // Obtener roles
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError);
+      }
+
+      // Combinar usuarios con roles
+      const usersWithRoles = (usersData || []).map((user: any) => {
+        const userRole = rolesData?.find((r: any) => r.user_id === user.id);
+        return {
+          ...user,
+          role: userRole?.role || 'admin_rrhh'
+        };
       });
 
-      if (error) throw error;
-      return data || [];
+      return usersWithRoles;
     },
   });
 
