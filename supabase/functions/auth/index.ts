@@ -43,31 +43,47 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
   const data = encoder.encode(password);
   
   const [saltHex, hashHex] = storedHash.split(':');
-  const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
   
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    data,
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
+  // Intentar verificación PBKDF2 primero
+  try {
+    const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+    
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      data,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+    
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      256
+    );
+    
+    const hashArray = Array.from(new Uint8Array(derivedBits));
+    const computedHashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    if (computedHashHex === hashHex) {
+      return true;
+    }
+  } catch (e) {
+    // Si falla PBKDF2, intentar verificación SHA256 simple (para usuario inicial)
+  }
   
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
+  // Fallback: verificación SHA256 simple para usuario creado en migración
+  const simpleHashData = encoder.encode(password + saltHex);
+  const simpleHashBuffer = await crypto.subtle.digest('SHA-256', simpleHashData);
+  const simpleHashArray = Array.from(new Uint8Array(simpleHashBuffer));
+  const simpleHashHex = simpleHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   
-  const hashArray = Array.from(new Uint8Array(derivedBits));
-  const computedHashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return computedHashHex === hashHex;
+  return simpleHashHex === hashHex;
 }
 
 serve(async (req) => {
