@@ -42,7 +42,9 @@ export default function DocumentForm() {
   const { user } = useAuth();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [uploadInProgress, setUploadInProgress] = useState(false);
+  const [selectedFileObj, setSelectedFileObj] = useState<File | null>(null);
   const isEditing = !!id;
+  const uploaderPath = 'general';
 
   // Cargar lista de empleados
   const { data: employees = [] } = useQuery<Employee[]>({
@@ -127,6 +129,7 @@ export default function DocumentForm() {
         tags: document.tags?.join(', ') || '',
       });
       setUploadedFile(document.file_path);
+      setSelectedFileObj(null);
     }
   }, [document, form]);
 
@@ -157,8 +160,8 @@ export default function DocumentForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      if (!uploadedFile && !isEditing) {
-        throw new Error('Debe subir un archivo');
+      if (!uploadedFile && !selectedFileObj && !isEditing) {
+        throw new Error('Debe seleccionar un archivo');
       }
 
       // Asegurar que el usuario esté autenticado antes de intentar insertar
@@ -199,7 +202,23 @@ export default function DocumentForm() {
           tags: tagsArray,
         };
 
-        if (uploadedFile && uploadedFile !== document?.file_path) {
+        // If user selected a new file while editing, upload it and set new file_path
+        if (selectedFileObj) {
+          setUploadInProgress(true);
+          try {
+            const fileExt = selectedFileObj.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).slice(2)}.${fileExt}`;
+            const filePath = uploaderPath ? `${uploaderPath}/${fileName}` : fileName;
+            const { error: uploadErr } = await supabase.storage.from('documents').upload(filePath, selectedFileObj, { cacheControl: '3600', upsert: false });
+            if (uploadErr) throw uploadErr;
+            updatePayload.file_path = filePath;
+            updatePayload.version = (document?.version || 1) + 1;
+            // set uploadedFile for consistency
+            setUploadedFile(filePath);
+          } finally {
+            setUploadInProgress(false);
+          }
+        } else if (uploadedFile && uploadedFile !== document?.file_path) {
           updatePayload.file_path = uploadedFile;
           updatePayload.version = (document?.version || 1) + 1;
         }
@@ -208,6 +227,23 @@ export default function DocumentForm() {
         if (error) throw error;
       } else {
         // Flujo crítico: Storage -> BD con compensación
+        // Upload selected file first
+        let filePathToUse = uploadedFile;
+        if (selectedFileObj) {
+          setUploadInProgress(true);
+          try {
+            const fileExt = selectedFileObj.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).slice(2)}.${fileExt}`;
+            const filePath = uploaderPath ? `${uploaderPath}/${fileName}` : fileName;
+            const { error: uploadErr } = await supabase.storage.from('documents').upload(filePath, selectedFileObj, { cacheControl: '3600', upsert: false });
+            if (uploadErr) throw uploadErr;
+            filePathToUse = filePath;
+            setUploadedFile(filePath);
+          } finally {
+            setUploadInProgress(false);
+          }
+        }
+
         const insertPayload: DocumentInsert = {
           title: data.title,
           description: data.description || null,
@@ -215,7 +251,7 @@ export default function DocumentForm() {
           employee_id: data.employee_id,
           is_public: data.is_public,
           tags: tagsArray,
-          file_path: uploadedFile!,
+          file_path: filePathToUse!,
           version: 1,
           uploaded_by: user!.id,
           estado: 'pendiente',
@@ -236,9 +272,9 @@ export default function DocumentForm() {
 
         if (error) {
           // COMPENSACIÓN: Si falla la BD, borrar el archivo de Storage
-          if (uploadedFile) {
-            console.error('Error en BD, borrando archivo de Storage:', uploadedFile);
-            await supabase.storage.from('documents').remove([uploadedFile]);
+          if (filePathToUse) {
+            console.error('Error en BD, borrando archivo de Storage:', filePathToUse);
+            await supabase.storage.from('documents').remove([filePathToUse]);
           }
           throw error;
         }
@@ -423,22 +459,18 @@ export default function DocumentForm() {
                 <div className="mt-2 mb-6">
                   <FileUploader
                     bucket="documents"
-                    path="general"
-                    onUploadComplete={(path) => {
-                      setUploadedFile(path);
-                      toast.success('Archivo subido correctamente');
-                    }}
+                    path={uploaderPath}
+                    onFileSelected={(f) => setSelectedFileObj(f)}
                     onUploadError={(error) => {
                       toast.error('Error al subir archivo', {
                         description: error,
                       });
                     }}
-                    onUploadingChange={(v) => setUploadInProgress(v)}
                   />
                 </div>
                 {!uploadedFile && !isEditing && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    El archivo debe subirse antes de guardar el documento
+                    Debes seleccionar un archivo antes de guardar el documento
                   </p>
                 )}
               </div>
@@ -446,7 +478,7 @@ export default function DocumentForm() {
               <div className="flex gap-4 pt-4 border-t relative z-[1]">
                 <Button 
                   type="submit" 
-                  disabled={mutation.isPending || uploadInProgress || (!uploadedFile && !isEditing)}
+                  disabled={mutation.isPending || uploadInProgress || (!uploadedFile && !selectedFileObj && !isEditing)}
                   className="relative z-[1] min-w-[200px]"
                 >
                   {uploadInProgress ? (
