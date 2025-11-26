@@ -138,7 +138,7 @@ export default function IncidentsList() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Incidencias de Seguridad</h1>
+        <h1 className="text-3xl font-bold">Incidencias</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate('/incidencias/dashboard')}>
             <BarChart3 className="mr-2 h-4 w-4" />
