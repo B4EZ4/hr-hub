@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,32 +25,61 @@ export default function IncidentsList() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const { data: incidentsData, isLoading } = useQuery({
-    queryKey: ['incidents', searchTerm, statusFilter, severityFilter, currentPage],
+    // Exclude `searchTerm` from the query key so typing doesn't trigger refetches.
+    queryKey: ['incidents', statusFilter, severityFilter, currentPage],
     queryFn: async () => {
+      // 1) Obtener incidents (paginado)
       let query = supabase
         .from('incidents')
-        .select(`
-          *,
-          reporter:profiles!incidents_reported_by_fkey(full_name),
-          assignee:profiles!incidents_assigned_to_fkey(full_name)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-      
-      if (severityFilter !== 'all') {
-        query = query.eq('severity', severityFilter);
-      }
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      if (severityFilter !== 'all') query = query.eq('severity', severityFilter);
 
       const start = (currentPage - 1) * ITEMS_PER_PAGE;
       query = query.range(start, start + ITEMS_PER_PAGE - 1);
 
-      const { data, error, count } = await query;
+      const { data: incidents, error, count } = await query;
       if (error) throw error;
 
-      return { data: data || [], count: count || 0 };
+      const rows = incidents || [];
+
+      // 2) Recolectar user ids para assigned_to y reported_by
+      const userIdsSet = new Set<string>();
+      rows.forEach((r: any) => {
+        if (r.assigned_to) userIdsSet.add(r.assigned_to);
+        if (r.reported_by) userIdsSet.add(r.reported_by);
+      });
+
+      const userIds = Array.from(userIdsSet);
+
+      if (userIds.length === 0) {
+        return { data: rows, count: count || 0 };
+      }
+
+      // 3) Consultar profiles por user_id para obtener full_name
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds);
+
+      if (profilesError) {
+        // Si falla la consulta de profiles, devolvemos incidents sin enrich
+        return { data: rows, count: count || 0 };
+      }
+
+      const profileMap = new Map<string, any>();
+      (profiles || []).forEach((p: any) => profileMap.set(p.user_id, p));
+
+      // 4) Adjuntar reporter/assignee con full_name cuando exista
+      const enriched = rows.map((r: any) => ({
+        ...r,
+        reporter: profileMap.get(r.reported_by) || null,
+        assignee: profileMap.get(r.assigned_to) || null,
+      }));
+
+      return { data: enriched, count: count || 0 };
     },
   });
 
@@ -62,9 +91,26 @@ export default function IncidentsList() {
 
   const totalPages = Math.ceil((incidentsData?.count || 0) / ITEMS_PER_PAGE);
 
+  const queryClient = useQueryClient();
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const updateStatus = async (id: string, status: string) => {
+    try {
+      setUpdatingId(id);
+      const { error } = await supabase.from('incidents').update({ status }).eq('id', id);
+      if (error) throw error;
+      // invalidate queries to refresh list
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    } catch (e: any) {
+      console.error('Error updating status', e);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const statusMap: Record<string, { label: string; variant: any }> = {
     abierto: { label: 'Abierto', variant: 'default' },
-    en_progreso: { label: 'En Progreso', variant: 'default' },
+    en_progreso: { label: 'En Progreso', variant: 'warning' },
     resuelto: { label: 'Resuelto', variant: 'success' },
     cerrado: { label: 'Cerrado', variant: 'outline' },
   };
@@ -86,10 +132,17 @@ export default function IncidentsList() {
       accessorKey: 'incident_type',
       cell: (value: string) => {
         const types: Record<string, string> = {
+          // legacy
           accidente: 'Accidente',
           incidente: 'Incidente',
           casi_accidente: 'Casi Accidente',
           condicion_insegura: 'Condición Insegura',
+          // nuevos slugs
+          falta_injustificada: 'Falta injustificada',
+          falta_justificada: 'Falta justificada',
+          permiso_laboral: 'Permiso laboral',
+          accidente_laboral: 'Accidente laboral',
+          despido: 'Despido',
         };
         return types[value] || value;
       },
@@ -101,11 +154,6 @@ export default function IncidentsList() {
         const severity = severityMap[value] || { label: value, variant: 'default' };
         return <Badge variant={severity.variant}>{severity.label}</Badge>;
       },
-    },
-    {
-      header: 'Reportado por',
-      accessorKey: 'reporter',
-      cell: (value: any) => value?.full_name || '-',
     },
     {
       header: 'Asignado a',
@@ -164,8 +212,8 @@ export default function IncidentsList() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="abierto">Abierto</SelectItem>
-            <SelectItem value="en_investigacion">En Investigación</SelectItem>
+              <SelectItem value="abierto">Abierto</SelectItem>
+              <SelectItem value="en_progreso">En Progreso</SelectItem>
             <SelectItem value="resuelto">Resuelto</SelectItem>
             <SelectItem value="cerrado">Cerrado</SelectItem>
           </SelectContent>
@@ -185,11 +233,42 @@ export default function IncidentsList() {
       </div>
 
       <DataTable
-        data={filteredData || []}
-        columns={columns}
-        searchPlaceholder="Buscar incidencias..."
-        onRowClick={(row) => navigate(`/incidencias/${row.id}`)}
-      />
+            data={filteredData || []}
+            columns={columns}
+            searchPlaceholder="Buscar incidencias..."
+            onRowClick={(row) => navigate(`/incidencias/${row.id}`)}
+            actions={(row: any) => (
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/incidencias/${row.id}`)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={row.status === 'abierto' ? 'default' : 'outline'}
+                  onClick={() => updateStatus(row.id, 'abierto')}
+                  disabled={updatingId === row.id}
+                >
+                  Abierto
+                </Button>
+                <Button
+                  size="sm"
+                  variant={row.status === 'en_progreso' ? 'warning' : 'outline'}
+                  onClick={() => updateStatus(row.id, 'en_progreso')}
+                  disabled={updatingId === row.id}
+                >
+                  En Progreso
+                </Button>
+                <Button
+                  size="sm"
+                  variant={row.status === 'cerrado' ? 'destructive' : 'outline'}
+                  onClick={() => updateStatus(row.id, 'cerrado')}
+                  disabled={updatingId === row.id}
+                >
+                  Finalizar
+                </Button>
+              </div>
+            )}
+          />
 
       {totalPages > 1 && (
         <div className="flex justify-center gap-2">

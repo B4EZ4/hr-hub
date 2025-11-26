@@ -1,7 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, AlertTriangle, MapPin, Calendar, User } from 'lucide-react';
@@ -10,6 +30,14 @@ import { Loader2 } from 'lucide-react';
 export default function IncidentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  const queryClient = useQueryClient();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [editSeverity, setEditSeverity] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incident', id],
@@ -88,6 +116,20 @@ export default function IncidentDetail() {
         <div className="flex items-center gap-2">
           <Badge variant={severity.variant}>{severity.label}</Badge>
           <Badge variant={status.variant}>{status.label}</Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Initialize edit form from current incident and open modal
+              setEditTitle(incident.title || '');
+              setEditDescription(incident.description || '');
+              setEditStatus(incident.status || 'abierto');
+              setEditSeverity(incident.severity || 'baja');
+              setIsEditOpen(true);
+            }}
+          >
+            Editar
+          </Button>
         </div>
       </div>
 
@@ -196,6 +238,90 @@ export default function IncidentDetail() {
           </Card>
         )}
       </div>
+
+      <AlertDialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Editar Incidencia</AlertDialogTitle>
+            <AlertDialogDescription>Modifica los campos y guarda los cambios.</AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground">Título</label>
+              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground">Descripción</label>
+              <Textarea rows={4} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-muted-foreground">Estado</label>
+                <Select value={editStatus} onValueChange={setEditStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="abierto">Abierto</SelectItem>
+                    <SelectItem value="en_progreso">En Progreso</SelectItem>
+                    <SelectItem value="resuelto">Resuelto</SelectItem>
+                    <SelectItem value="cerrado">Cerrado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground">Severidad</label>
+                <Select value={editSeverity} onValueChange={setEditSeverity}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baja">Baja</SelectItem>
+                    <SelectItem value="media">Media</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="critica">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  setSaving(true);
+                  const { error } = await (supabase as any)
+                    .from('incidents')
+                    .update({
+                      title: editTitle,
+                      description: editDescription,
+                      status: editStatus,
+                      severity: editSeverity,
+                    })
+                    .eq('id', id);
+
+                  if (error) throw error;
+                  await queryClient.invalidateQueries({ queryKey: ['incident', id] });
+                  await queryClient.invalidateQueries({ queryKey: ['incidents'] });
+                  setIsEditOpen(false);
+                } catch (e) {
+                  console.error('Error updating incident', e);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? 'Guardando...' : 'Guardar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

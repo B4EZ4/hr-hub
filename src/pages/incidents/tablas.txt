@@ -27,7 +27,7 @@ incidents (
   severity text NOT NULL CHECK (severity IN ('baja','media','alta','critica')),
   location text,
   reported_by uuid REFERENCES auth.users(id) NOT NULL,
-  assigned_to uuid REFERENCES auth.users(id),
+  assigned_to uuid REFERENCES profiles.user_id(id),
   status text DEFAULT 'abierto' CHECK (status IN ('abierto','en_progreso','resuelto','cerrado')),
   resolution text,
   file_paths text[],

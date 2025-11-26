@@ -20,7 +20,7 @@ export default function IncidentsDashboard() {
       
       const total = data.length;
       const abiertos = data.filter(i => i.status === 'abierto').length;
-      const enProceso = data.filter(i => i.status === 'en_investigacion').length;
+      const enProceso = data.filter(i => i.status === 'en_progreso').length;
       const cerrados = data.filter(i => i.status === 'cerrado').length;
       
       return { total, abiertos, enProceso, cerrados };
@@ -105,7 +105,7 @@ export default function IncidentsDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Investigación</CardTitle>
+            <CardTitle className="text-sm font-medium">En Progreso</CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
