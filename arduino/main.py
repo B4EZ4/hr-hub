@@ -2,12 +2,12 @@
 import time
 import machine
 
-# --- INICIO SEGURO (ANTI-BUCLE) ---
+# --- INICIO SEGURO ---
 print("--- INICIO DEL SISTEMA ---")
-print("Tienes 2 segundos para presionar Ctrl+C si necesitas editar...")
+print("Tienes 2 segundos para presionar Ctrl+C...")
 time.sleep(2)
 print("Iniciando lógica principal...")
-# ----------------------------------
+# ---------------------
 
 import urequests
 import ujson
@@ -15,76 +15,82 @@ from machine import I2C, Pin, UART
 from i2c_lcd import I2cLcd
 from as608 import AS608
 
-# --- CONFIGURACIÓN SUPABASE ---
+# --- CONFIGURACIÓN ---
 SUPABASE_URL = "https://dzwxepnmyoawcikkldof.supabase.co/functions/v1/biometric-api"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d3hlcG5teW9hd2Npa2tsZG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwMjQ5NjIsImV4cCI6MjA3OTYwMDk2Mn0.GZvX51vt9FiYnzHtS1WecV46ImuVsh1jQJlT-ZQhJnE"
 DEVICE_ID = "ESP32-001"
 
 # --- PINES ---
-# Sensor Huella (UART2): TX(17) -> Sensor Verde, RX(16) -> Sensor Blanco
 try:
-    uart = UART(2, baudrate=57600, tx=17, rx=16)
+    uart = UART(2, baudrate=57600, tx=16, rx=17)
 except Exception as e:
-    print("Error iniciando UART:", e)
+    print("Error UART:", e)
 
 # LCD I2C
 I2C_ADDR = 0x27
 try:
     i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=100000)
 except Exception as e:
-    print("Error iniciando I2C:", e)
+    print("Error I2C:", e)
 
-# --- OBJETOS GLOBALES ---
+# --- GLOBALES ---
 lcd = None
 finger = None
 enroll_id = 0
 last_poll = 0
-POLL_INTERVAL = 5000 # ms
+POLL_INTERVAL = 5000 
 
 # Estados
 IDLE = 0
 ENROLLING = 1
 current_state = IDLE
 
+# --- FUNCIONES DE UI (AYUDA VISUAL) ---
+def lcd_print(linea1, linea2=""):
+    """Función auxiliar para escribir rápido en LCD"""
+    if lcd:
+        lcd.clear()
+        lcd.putstr(linea1)
+        if linea2:
+            lcd.move_to(0, 1)
+            lcd.putstr(linea2)
+
+def mostrar_espera():
+    """Muestra la pantalla por defecto de espera"""
+    # Linea 0: Modo Actual, Linea 1: Instrucción
+    lcd_print("MODO ASISTENCIA", "Coloque Dedo...")
+
 def setup():
     global lcd, finger
     
-    # 1. Inicializar LCD
+    # 1. LCD
     try:
         lcd = I2cLcd(i2c, I2C_ADDR, 2, 16)
         lcd.backlight_on(True)
-        lcd.clear()
-        lcd.putstr("Sistema Init...")
+        lcd_print("Iniciando...", "Cargando Sistema")
     except Exception as e:
-        print("Error LCD (verificar dirección I2C):", e)
-        # Si falla LCD, seguimos por consola
+        print("Error LCD:", e)
     
     time.sleep(1)
 
-    # 2. Inicializar Sensor
+    # 2. Sensor
     try:
         finger = AS608(uart)
         if finger.verify_password():
-            print("Sensor de huella: OK")
-            if lcd: 
-                lcd.move_to(0, 1)
-                lcd.putstr("Sensor OK")
+            print("Sensor OK")
+            lcd_print("Chequeo Sistema", "Sensor: OK")
         else:
-            print("Sensor de huella: NO ENCONTRADO")
-            if lcd:
-                lcd.move_to(0, 1)
-                lcd.putstr("Error Sensor")
-            # Bucle de seguridad si no hay sensor (opcional)
-            # while True: time.sleep(1) 
+            print("Sensor NO encontrado")
+            lcd_print("ERROR FATAL", "Sensor No Hallado")
+            # while True: time.sleep(1) # Descomentar en producción
     except Exception as e:
-        print("Excepción al iniciar sensor:", e)
+        print("Excepción Sensor:", e)
+        lcd_print("Excepcion", "Verificar Cables")
 
-    time.sleep(1)
-    if lcd:
-        lcd.clear()
-        lcd.putstr("Listo")
+    time.sleep(1.5)
+    mostrar_espera()
 
-# --- FUNCIONES DE API SUPABASE ---
+# --- COMUNICACIÓN SUPABASE ---
 
 def poll_commands():
     global current_state, enroll_id
@@ -92,6 +98,8 @@ def poll_commands():
     headers = {"Authorization": f"Bearer {SUPABASE_KEY}"}
     
     try:
+        # No imprimimos en LCD aquí para no parpadear la pantalla
+        # a menos que encontremos algo.
         res = urequests.get(url, headers=headers)
         if res.status_code == 200:
             data = res.json()
@@ -103,12 +111,11 @@ def poll_commands():
                 if cmd_type == "ENROLL":
                     payload = cmd.get("payload", {})
                     enroll_id = payload.get("biometric_id", 0)
-                    print(f"Comando recibido: ENROLL ID {enroll_id}")
+                    print(f"Comando ENROLL ID {enroll_id}")
                     
                     current_state = ENROLLING
-                    if lcd:
-                        lcd.clear()
-                        lcd.putstr(f"Enrolar ID: {enroll_id}")
+                    lcd_print("NUEVO REGISTRO", f"ID Asignado: {enroll_id}")
+                    time.sleep(1)
                     
                     update_command_status(cmd_id, "processing", "")
         res.close()
@@ -122,8 +129,7 @@ def update_command_status(cmd_id, status, result=""):
         "Authorization": f"Bearer {SUPABASE_KEY}"
     }
     data = {"command_id": cmd_id, "status": status}
-    if result:
-        data["result"] = result
+    if result: data["result"] = result
         
     try:
         res = urequests.post(url, headers=headers, json=data)
@@ -132,6 +138,9 @@ def update_command_status(cmd_id, status, result=""):
         print("Error status update:", e)
 
 def send_attendance(bio_id):
+    # Feedback inmediato al usuario
+    lcd_print("Procesando...", "Espere por favor")
+    
     url = f"{SUPABASE_URL}/attendance"
     headers = {
         "Content-Type": "application/json",
@@ -140,29 +149,26 @@ def send_attendance(bio_id):
     data = {"biometric_id": bio_id, "device_id": DEVICE_ID}
     
     try:
-        print(f"Enviando asistencia ID: {bio_id}...")
+        print(f"Enviando ID: {bio_id}...")
         res = urequests.post(url, headers=headers, json=data)
         
         if res.status_code == 200:
             res_data = res.json()
             name = res_data.get("name", "Usuario")
-            tipo = res_data.get("type", "Log")
+            tipo = res_data.get("type", "Registro")
             
-            print(f"Respuesta: {tipo} - {name}")
-            if lcd:
-                lcd.move_to(0, 1)
-                lcd.putstr(f"{tipo} {name}"[:16])
+            # Cortamos nombres largos para que quepan en 16 chars
+            nombre_corto = name[:16]
+            
+            print(f"Resp: {tipo} - {name}")
+            lcd_print(f"HOLA {nombre_corto}", "Registro Exitoso")
         else:
             print("Error HTTP:", res.status_code)
-            if lcd:
-                lcd.move_to(0, 1)
-                lcd.putstr("Error Red")
+            lcd_print("Error Servidor", f"Codigo: {res.status_code}")
         res.close()
     except Exception as e:
         print("Error attendance:", e)
-        if lcd:
-            lcd.move_to(0, 1)
-            lcd.putstr("Error HTTP")
+        lcd_print("Error de Red", "Sin conexion")
 
 # --- LÓGICA DE HUELLA ---
 
@@ -173,36 +179,28 @@ def check_finger():
     if finger.get_image() != 0x00:
         return
 
-    # 2. Convertir a template
+    # 2. Convertir
     if finger.image_2_tz(1) != 0x00:
         return
 
     # 3. Buscar
+    lcd_print("Leyendo Huella", "Identificando...") # Feedback visual rápido
     found_id = finger.finger_fast_search()
     
     if found_id == -1:
-        if lcd:
-            lcd.clear()
-            lcd.putstr("No encontrado")
-        print("Huella no encontrada en base de datos local.")
+        print("Huella desconocida")
+        lcd_print("ACCESO DENEGADO", "Huella No Valida")
         time.sleep(1.5)
-        if lcd:
-            lcd.clear()
-            lcd.putstr("Listo")
+        mostrar_espera() # Volver a mensaje descriptivo
         return
 
     # Encontrado
-    print(f"¡Huella encontrada! ID Interno #{found_id}")
-    if lcd:
-        lcd.clear()
-        lcd.putstr(f"ID: {found_id}")
-    
+    print(f"Encontrado ID #{found_id}")
+    # Nota: send_attendance ya actualiza la pantalla
     send_attendance(found_id)
     
-    time.sleep(2)
-    if lcd:
-        lcd.clear()
-        lcd.putstr("Listo")
+    time.sleep(2.5) # Tiempo para leer el nombre
+    mostrar_espera() # Volver a mensaje descriptivo
 
 def handle_enroll():
     global current_state
@@ -211,61 +209,57 @@ def handle_enroll():
         return
 
     # Paso 1
-    if lcd:
-        lcd.move_to(0, 1)
-        lcd.putstr("Poner dedo...")
+    lcd_print("REGISTRO DE HUELLA", "Coloque Dedo...")
     
     while finger.get_image() != 0x00:
         time.sleep_ms(100)
     
     if finger.image_2_tz(1) != 0x00:
-        if lcd: lcd.putstr("Err IMG1"); time.sleep(1)
+        lcd_print("Error Lectura", "Intente de nuevo"); time.sleep(1)
         return
 
     # Paso 2
-    if lcd:
-        lcd.clear(); lcd.putstr("Quitar dedo")
+    lcd_print("REGISTRO DE HUELLA", "Retire el dedo")
     time.sleep(2)
     while finger.get_image() == 0x00:
         time.sleep_ms(100)
 
     # Paso 3
-    if lcd:
-        lcd.clear(); lcd.putstr("Poner mismo")
+    lcd_print("REGISTRO DE HUELLA", "Poner el MISMO")
     while finger.get_image() != 0x00:
         time.sleep_ms(100)
 
     if finger.image_2_tz(2) != 0x00:
-        if lcd: lcd.putstr("Err IMG2"); time.sleep(1)
+        lcd_print("Error Lectura", "No coincide"); time.sleep(1)
         return
 
     # Paso 4
     if finger.create_model() != 0x00:
-        if lcd: lcd.putstr("Err Model"); time.sleep(1)
+        lcd_print("Error Modelo", "Huellas distintas"); time.sleep(1)
         return
         
     # Paso 5
     if finger.store_model(enroll_id) == 0x00:
-        if lcd: lcd.clear(); lcd.putstr("Exito!")
+        lcd_print("REGISTRO EXITOSO", f"ID Guardado: {enroll_id}")
         print(f"Huella guardada en ID {enroll_id}")
         current_state = IDLE
     else:
-        if lcd: lcd.clear(); lcd.putstr("Fallo Store")
+        lcd_print("Error Guardado", "Fallo Memoria")
         
     time.sleep(2)
-    if lcd: lcd.clear(); lcd.putstr("Listo")
+    mostrar_espera()
 
 # --- EJECUCIÓN PRINCIPAL ---
 
 setup()
 
-print("Iniciando bucle principal...")
+print("Iniciando bucle...")
 
 while True:
     now = time.ticks_ms()
     
     try:
-        # 1. Polling de comandos
+        # 1. Polling (Asistencia)
         if current_state == IDLE:
             if time.ticks_diff(now, last_poll) > POLL_INTERVAL:
                 poll_commands()
@@ -273,13 +267,12 @@ while True:
                 
             check_finger()
             
-        # 2. Enrollment
+        # 2. Registro
         elif current_state == ENROLLING:
             handle_enroll()
             
     except Exception as e:
-        print("Error en bucle principal:", e)
-        # Pequeña pausa para no saturar si hay error constante
+        print("Error Loop:", e)
         time.sleep(1)
         
     time.sleep_ms(50)

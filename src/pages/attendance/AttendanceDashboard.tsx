@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, differenceInMinutes, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -11,7 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, Clock8, UserCheck, Users } from "lucide-react";
+import { AlertTriangle, Clock8, UserCheck, Users, Edit } from "lucide-react";
+import { EditAttendanceDialog } from "@/components/attendance/EditAttendanceDialog";
 
 type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"] & {
   profiles?: {
@@ -19,6 +20,11 @@ type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"
     areas?: { name: string } | null;
     positions?: { title: string } | null;
   };
+  // Optional fields for display purposes
+  full_name?: string;
+  avatar_url?: string;
+  area_name?: string;
+  position_title?: string;
 };
 
 type EmployeeProfile = Pick<Database["public"]["Tables"]["profiles"]["Row"],
@@ -55,6 +61,9 @@ export default function AttendanceDashboard() {
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
   const todayIso = format(today, "yyyy-MM-dd");
+
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: employees = [], isLoading: employeesLoading } = useQuery<EmployeeProfile[]>({
     queryKey: ["attendance-employees"],
@@ -123,7 +132,13 @@ export default function AttendanceDashboard() {
   });
 
   const todayRecords = useMemo(
-    () => attendance.filter((record) => record.attendance_date === todayIso),
+    () => {
+      console.log('Today ISO:', todayIso);
+      console.log('All attendance records:', attendance);
+      const filtered = attendance.filter((record) => record.attendance_date === todayIso);
+      console.log('Filtered today records:', filtered);
+      return filtered;
+    },
     [attendance, todayIso]
   );
 
@@ -265,6 +280,7 @@ export default function AttendanceDashboard() {
                       <TableHead>Check-in</TableHead>
                       <TableHead>Check-out</TableHead>
                       <TableHead className="text-right">Estado</TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -303,6 +319,24 @@ export default function AttendanceDashboard() {
                           <TableCell>{record.check_out ? format(new Date(record.check_out), "HH:mm") : "—"}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={status.variant}>{status.label}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedRecord({
+                                  ...record,
+                                  full_name: employeeName,
+                                  avatar_url: (record as any).avatar_url || employee?.avatar_url,
+                                  area_name: area,
+                                  position_title: position,
+                                });
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -403,6 +437,12 @@ export default function AttendanceDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <EditAttendanceDialog
+        record={selectedRecord}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </div>
   );
 }

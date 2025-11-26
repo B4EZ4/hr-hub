@@ -100,9 +100,17 @@ serve(async (req) => {
             const scheduledStart = positions?.work_start_time || '09:00:00';
             const scheduledEnd = positions?.work_end_time || '18:00:00';
 
-            // 2. Check existing attendance for today
+            // 2. Check existing attendance for today (Mexico City timezone)
             const now = new Date();
-            const today = now.toISOString().split('T')[0];
+            // Mexico City is GMT-6 (or GMT-5 during DST, but we'll use GMT-6 for consistency)
+            // Calculate Mexico time by subtracting 6 hours from UTC
+            const mexicoOffsetMinutes = -6 * 60; // -360 minutes
+            const mexicoTime = new Date(now.getTime() + (mexicoOffsetMinutes * 60 * 1000));
+            const today = mexicoTime.toISOString().split('T')[0];
+
+            console.log('UTC now:', now.toISOString());
+            console.log('Mexico time:', mexicoTime.toISOString());
+            console.log('Today date (Mexico):', today);
 
             const { data: existing } = await supabaseClient
                 .from('attendance_records')
