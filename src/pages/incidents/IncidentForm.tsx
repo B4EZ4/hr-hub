@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -18,7 +18,8 @@ import { Loader2 } from 'lucide-react';
 const incidentSchema = z.object({
   title: z.string().min(5, 'El título debe tener al menos 5 caracteres').max(200),
   description: z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
-  incident_type: z.enum(['accidente', 'incidente', 'casi_accidente', 'condicion_insegura']),
+  // Usamos slugs como valor guardado en DB y etiquetas separadas en la UI
+  incident_type: z.enum(['falta_injustificada', 'falta_justificada', 'permiso_laboral', 'accidente_laboral', 'despido']),
   severity: z.enum(['baja', 'media', 'alta', 'critica']),
   location: z.string().optional(),
 });
@@ -30,17 +31,44 @@ export default function IncidentForm() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filePaths, setFilePaths] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
 
   const form = useForm<IncidentFormData>({
     resolver: zodResolver(incidentSchema),
     defaultValues: {
       title: '',
       description: '',
-      incident_type: 'incidente',
+      incident_type: 'falta_injustificada',
       severity: 'media',
       location: '',
     },
   });
+
+  // Autocomplete: buscar perfiles por nombre (debounced)
+  const profilesQuery = useQuery<any[], any>({
+    queryKey: ['profiles', searchTerm],
+    queryFn: async () => {
+      const q = searchTerm.trim();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .ilike('full_name', `%${q}%`)
+        .order('full_name')
+        .limit(6);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: searchTerm.trim().length > 1,
+  });
+
+  const profileSuggestions = (profilesQuery.data ?? []) as any[];
+  const isSuggesting = profilesQuery.isFetching;
+
+  // Limpiar sugerencias al seleccionar
+  useEffect(() => {
+    if (selectedProfile) setSearchTerm('');
+  }, [selectedProfile]);
 
   const mutation = useMutation({
     mutationFn: async (data: IncidentFormData) => {
@@ -51,6 +79,8 @@ export default function IncidentForm() {
         .insert([{
           ...data,
           reported_by: user.id,
+          // assigned_to: si hay perfil seleccionado, usar su user_id
+          assigned_to: selectedProfile ? selectedProfile.user_id : null,
           file_paths: filePaths.length > 0 ? filePaths : null,
           status: 'abierto',
         }]);
@@ -124,10 +154,11 @@ export default function IncidentForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent className="bg-background">
-                      <SelectItem value="accidente">Accidente</SelectItem>
-                      <SelectItem value="incidente">Incidente</SelectItem>
-                      <SelectItem value="casi_accidente">Casi Accidente</SelectItem>
-                      <SelectItem value="condicion_insegura">Condición Insegura</SelectItem>
+                      <SelectItem value="falta_injustificada">Falta injustificada</SelectItem>
+                      <SelectItem value="falta_justificada">Falta justificada</SelectItem>
+                      <SelectItem value="permiso_laboral">Permiso laboral</SelectItem>
+                      <SelectItem value="accidente_laboral">Accidente laboral</SelectItem>
+                      <SelectItem value="despido">Despido</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -174,21 +205,66 @@ export default function IncidentForm() {
             )}
           />
 
+          {/* Asignar a: búsqueda de perfiles */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Asignar a (buscar perfil)</label>
+            <div className="relative">
+              <Input
+                value={selectedProfile ? selectedProfile.full_name : searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setSelectedProfile(null);
+                }}
+                placeholder="Escribe un nombre para buscar..."
+              />
+
+              {/* Sugerencias */}
+              {searchTerm.trim().length > 1 && profileSuggestions.length > 0 && !selectedProfile && (
+                <div className="absolute z-50 mt-1 w-full rounded-md bg-white shadow-lg border">
+                  {isSuggesting && <div className="p-2 text-sm text-muted-foreground">Buscando...</div>}
+                  {profileSuggestions.map((p: any) => (
+                    <button
+                      key={p.user_id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-muted/10"
+                      onClick={() => setSelectedProfile(p)}
+                    >
+                      <div className="font-medium">{p.full_name}</div>
+                      <div className="text-xs text-muted-foreground">{p.email}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedProfile && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium">Asignado a: {selectedProfile.full_name}</div>
+                    <div className="text-xs text-muted-foreground">{selectedProfile.email}</div>
+                  </div>
+                  <Button type="button" variant="ghost" onClick={() => setSelectedProfile(null)}>Quitar</Button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium mb-2 block">
-              Evidencias Fotográficas
+              Evidencias
             </label>
             <FileUploader
-              bucket="incidents"
-              accept="image/*,.pdf"
-              maxSize={10}
-              onUploadComplete={(path) => {
-                setFilePaths((prev) => [...prev, path]);
-                toast.success('Archivo adjuntado');
-              }}
-              onUploadError={(error) => {
-                toast.error(`Error: ${error}`);
-              }}
+              {...({
+                bucket: 'incidents',
+                accept: 'image/*,.pdf',
+                maxSize: 10,
+                onUploadComplete: (path: string) => {
+                  setFilePaths((prev) => [...prev, path]);
+                  toast.success('Archivo adjuntado');
+                },
+                onUploadError: (error: string) => {
+                  toast.error(`Error: ${error}`);
+                },
+              } as any)}
             />
             {filePaths.length > 0 && (
               <div className="mt-2 space-y-1">
