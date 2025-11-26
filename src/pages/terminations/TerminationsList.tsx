@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,14 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/shared/DataTable';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -58,16 +51,15 @@ export default function TerminationsList() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const { data: terminationsData, isLoading } = useQuery({
-    queryKey: ['terminations', searchTerm, statusFilter, currentPage],
+    // Exclude `searchTerm` from the key so typing doesn't trigger refetches
+    queryKey: ['terminations', statusFilter, currentPage],
     queryFn: async () => {
       let query = supabase
         .from('despidos')
-        .select(`
-          *,
-          profiles!despidos_employee_id_fkey(full_name, email)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -77,10 +69,40 @@ export default function TerminationsList() {
       const start = (currentPage - 1) * ITEMS_PER_PAGE;
       query = query.range(start, start + ITEMS_PER_PAGE - 1);
 
-      const { data, error, count } = await query;
+      const { data: rows, error, count } = await query;
       if (error) throw error;
 
-      return { data: data || [], count: count || 0 };
+      const items = rows || [];
+
+      // Enrich with profiles: collect employee ids and query profiles
+      const userIdsSet = new Set<string>();
+      items.forEach((r: any) => {
+        if (r.employee_id) userIdsSet.add(r.employee_id);
+      });
+
+      const userIds = Array.from(userIdsSet);
+      if (userIds.length === 0) {
+        return { data: items, count: count || 0 };
+      }
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .in('user_id', userIds);
+
+      if (profilesError) {
+        return { data: items, count: count || 0 };
+      }
+
+      const profileMap = new Map<string, any>();
+      (profiles || []).forEach((p: any) => profileMap.set(p.user_id, p));
+
+      const enriched = items.map((r: any) => ({
+        ...r,
+        employee: profileMap.get(r.employee_id) || null,
+      }));
+
+      return { data: enriched, count: count || 0 };
     },
   });
 
@@ -106,8 +128,37 @@ export default function TerminationsList() {
     },
   });
 
+  const updateTerminationStatus = async (id: string, newStatus: string, employeeId?: string) => {
+    try {
+      setUpdatingId(id);
+
+      const { error } = await supabase.from('despidos').update({ estado: newStatus }).eq('id', id);
+      if (error) throw error;
+
+      // Si se marca como completado -> marcar profile como inactivo
+      if (newStatus === 'completado' && employeeId) {
+        const { error: pErr } = await supabase.from('profiles').update({ status: 'inactivo' }).eq('user_id', employeeId);
+        if (pErr) console.error('Error updating profile status', pErr);
+      }
+
+      // Si se marca como cancelado -> volver a activo
+      if (newStatus === 'cancelado' && employeeId) {
+        const { error: pErr } = await supabase.from('profiles').update({ status: 'activo' }).eq('user_id', employeeId);
+        if (pErr) console.error('Error updating profile status', pErr);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['terminations'] });
+      toast.success('Estado actualizado');
+    } catch (e: any) {
+      console.error('Error updating termination status', e);
+      toast.error(e?.message || 'Error al actualizar estado');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const filteredData = terminationsData?.data.filter((item: any) =>
-    item.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.employee?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.motivo?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -117,10 +168,15 @@ export default function TerminationsList() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Gestión de Despidos</h1>
-        <Button onClick={() => navigate('/despidos/nuevo')}>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/despidos/dashboard')}>
+            Dashboard
+          </Button>
+          <Button onClick={() => navigate('/despidos/nuevo')}>
           <Plus className="mr-2 h-4 w-4" />
           Nuevo Despido
-        </Button>
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-4">
@@ -151,72 +207,56 @@ export default function TerminationsList() {
         <div className="text-center py-8">Cargando...</div>
       ) : (
         <>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Empleado</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Fecha Despido</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Motivo</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No se encontraron despidos
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredData?.map((termination: any) => (
-                    <TableRow key={termination.id}>
-                      <TableCell className="font-medium">
-                        {termination.profiles?.full_name || 'N/A'}
-                      </TableCell>
-                      <TableCell>{tipoMap[termination.tipo_despido as keyof typeof tipoMap]}</TableCell>
-                      <TableCell>
-                        {format(new Date(termination.fecha_despido), 'dd/MM/yyyy', { locale: es })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusMap[termination.estado as keyof typeof statusMap]?.variant}>
-                          {statusMap[termination.estado as keyof typeof statusMap]?.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {termination.motivo}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/despidos/${termination.id}`)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/despidos/${termination.id}/editar`)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteId(termination.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+          <DataTable
+            data={filteredData || []}
+            columns={[
+              { header: 'Empleado', accessorKey: 'employee', cell: (v: any) => v?.full_name || 'N/A' },
+              { header: 'Tipo', accessorKey: 'tipo_despido', cell: (v: string) => tipoMap[v as keyof typeof tipoMap] || v },
+              { header: 'Fecha Despido', accessorKey: 'fecha_despido', cell: (v: string) => format(new Date(v), 'dd/MM/yyyy', { locale: es }) },
+              { header: 'Estado', accessorKey: 'estado', cell: (v: string) => {
+                  const s = statusMap[v as keyof typeof statusMap];
+                  return <Badge variant={s?.variant}>{s?.label}</Badge>;
+                }
+              },
+              { header: 'Motivo', accessorKey: 'motivo', cell: (v: string) => <div className="max-w-xs truncate">{v}</div> },
+            ]}
+            onRowClick={(row) => navigate(`/despidos/${row.id}`)}
+            actions={(row: any) => (
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/despidos/${row.id}`)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/despidos/${row.id}/editar`)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                {/* Botón: marcar completado */}
+                {row.estado !== 'completado' && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => updateTerminationStatus(row.id, 'completado', row.employee_id)}
+                    disabled={updatingId === row.id}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
                 )}
-              </TableBody>
-            </Table>
-          </div>
+                {/* Botón: marcar cancelado */}
+                {row.estado !== 'cancelado' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => updateTerminationStatus(row.id, 'cancelado', row.employee_id)}
+                    disabled={updatingId === row.id}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.id)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            )}
+          />
 
           {totalPages > 1 && (
             <div className="flex justify-center gap-2">

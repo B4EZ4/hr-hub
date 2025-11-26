@@ -192,6 +192,9 @@ export default function IncidentsList() {
             <BarChart3 className="mr-2 h-4 w-4" />
             Dashboard
           </Button>
+          <Button variant="outline" onClick={() => navigate('/despidos')}>
+            Despidos
+          </Button>
           <Button onClick={() => navigate('/incidencias/new')}>
             <Plus className="mr-2 h-4 w-4" />
             Reportar Incidencia
