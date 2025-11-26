@@ -130,6 +130,31 @@ export default function DocumentForm() {
     }
   }, [document, form]);
 
+  // When editing, ensure the employee select is set to the document's employee
+  useEffect(() => {
+    if (!document) return;
+    if (!employees || employees.length === 0) return;
+
+    // Determine employee id from possible shapes: string id, relation object, or nested
+    const docTyped = document as unknown as {
+      employee?: { user_id?: string } | null;
+      employee_id?: string | { user_id?: string; id?: string } | null;
+    };
+
+    const empIdFromDoc =
+      typeof document.employee_id === 'string' && document.employee_id
+        ? (document.employee_id as string)
+        : docTyped.employee?.user_id || (typeof docTyped.employee_id === 'object' ? (docTyped.employee_id?.user_id || docTyped.employee_id?.id) : null);
+
+    if (empIdFromDoc) {
+      // Only set if the current value is empty or different
+      const current = form.getValues('employee_id');
+      if (!current || current !== empIdFromDoc) {
+        form.setValue('employee_id', empIdFromDoc);
+      }
+    }
+  }, [document, employees, form]);
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       if (!uploadedFile && !isEditing) {

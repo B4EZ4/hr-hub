@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Download, Eye, Trash2, Upload, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Download, Eye, Trash2, Upload, CheckCircle, XCircle, Pencil } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
 import { toast } from 'sonner';
 import {
@@ -28,14 +28,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { FileUploader } from '@/components/shared/FileUploader';
 
 export default function DocumentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
-  const [showUploader, setShowUploader] = useState(false);
+  
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
 
@@ -338,9 +337,10 @@ export default function DocumentDetail() {
 
             {canManageUsers && (
               <>
-                <Button onClick={() => setShowUploader(!showUploader)} variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Nueva Versión
+                
+                <Button onClick={() => navigate(`/documentos/${id}/edit`)} variant="outline">
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Editar
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -371,18 +371,7 @@ export default function DocumentDetail() {
             )}
           </div>
 
-          {showUploader && canManageUsers && (
-            <div className="mt-6 p-4 border rounded-lg">
-              <h3 className="font-medium mb-4">Subir nueva versión</h3>
-              <FileUploader
-                bucket="documents"
-                path={`${document.category}/${document.id}`}
-                onUploadComplete={(path) => {
-                  updateVersionMutation.mutate(path);
-                }}
-              />
-            </div>
-          )}
+          
         </CardContent>
       </Card>
 
