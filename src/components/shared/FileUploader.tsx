@@ -5,6 +5,8 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { supabase as publicSupabase } from '@/integrations/supabase/client';
 import { getSupabaseWithAuth } from '@/lib/supabase-with-auth';
+import { useAuth } from '@/contexts/AuthContext';
+import { getSessionToken } from '@/lib/auth';
 import { toast } from 'sonner';
 
 interface FileUploaderProps {
@@ -28,6 +30,7 @@ export function FileUploader({
   onUploadingChange,
   className,
 }: FileUploaderProps) {
+  const { user } = useAuth();
   const [file, setFile] = useState<globalThis.File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -120,6 +123,22 @@ export function FileUploader({
   const uploadFile = async () => {
     if (!file) return;
 
+    // Frontend checks: ensure user is authenticated before attempting upload
+    if (!user?.id) {
+      const msg = 'Debes iniciar sesión para subir archivos.';
+      toast.error(msg);
+      onUploadError?.(msg);
+      return;
+    }
+
+    const token = getSessionToken?.();
+    if (!token) {
+      const msg = 'Sesión no encontrada o expirada. Inicia sesión de nuevo.';
+      toast.error(msg);
+      onUploadError?.(msg);
+      return;
+    }
+
     setUploading(true);
     onUploadingChange?.(true);
     setProgress(0);
@@ -130,6 +149,7 @@ export function FileUploader({
       const filePath = path ? `${path}/${fileName}` : fileName;
 
       const client = getSupabaseWithAuth();
+      // Proceed to upload using the authenticated client (we rely on useAuth() and session token)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: uploadError } = await (client as any).storage
         .from(bucket)
@@ -195,6 +215,12 @@ export function FileUploader({
         onClick={() => {
           // Open file dialog only if bucket seems available and not uploading
           if (bucketExists === false) return;
+          if (!user?.id) {
+            const msg = 'Debes iniciar sesión para subir archivos.';
+            toast.error(msg);
+            onUploadError?.(msg);
+            return;
+          }
           if (!uploading && fileInputRef.current) fileInputRef.current.click();
         }}
       >
