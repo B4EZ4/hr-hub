@@ -103,6 +103,18 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                 status: values.status,
             };
 
+            // Check for duplicate full_name
+            const { data: existingCandidate } = await (supabase as any)
+                .from('recruitment_candidates')
+                .select('id')
+                .eq('full_name', payload.full_name)
+                .neq('id', candidate.id) // Exclude current candidate
+                .maybeSingle();
+
+            if (existingCandidate) {
+                throw new Error('Ya existe otro candidato con este nombre.');
+            }
+
             const { error } = await (supabase as any)
                 .from('recruitment_candidates')
                 .update(payload)
@@ -197,18 +209,19 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                                 name="seniority"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Seniority</FormLabel>
+                                        <FormLabel>Nivel / Experiencia</FormLabel>
                                         <Select disabled={mutation.isPending} onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Selecciona seniority" />
+                                                    <SelectValue placeholder="Selecciona nivel" />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="Junior">Junior</SelectItem>
-                                                <SelectItem value="Semi Senior">Semi Senior</SelectItem>
-                                                <SelectItem value="Senior">Senior</SelectItem>
-                                                <SelectItem value="Lead">Lead</SelectItem>
+                                                <SelectItem value="Sin experiencia">Sin experiencia</SelectItem>
+                                                <SelectItem value="Junior">Junior / Inicial</SelectItem>
+                                                <SelectItem value="Semi Senior">Semi Senior / Intermedio</SelectItem>
+                                                <SelectItem value="Senior">Senior / Avanzado</SelectItem>
+                                                <SelectItem value="Lead">Lead / Experto</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />

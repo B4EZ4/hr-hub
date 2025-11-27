@@ -79,7 +79,7 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('recruitment_positions')
-        .select('id, title, department, location, status')
+        .select('id, title, department, location, status, work_start_time, work_end_time')
         .in('status', ['abierta', 'en_proceso']);
       if (error) throw error;
       return data as RecruitmentPosition[];
@@ -89,10 +89,15 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
 
   const positionOptions = useMemo(() => {
     if (!positionsData?.length) return [];
-    return positionsData.map((position) => ({
-      id: position.id,
-      label: `${position.title} · ${position.department || 'Sin depto.'}`,
-    }));
+    return positionsData.map((position) => {
+      const schedule = position.work_start_time && position.work_end_time
+        ? ` (${position.work_start_time.slice(0, 5)} - ${position.work_end_time.slice(0, 5)})`
+        : '';
+      return {
+        id: position.id,
+        label: `${position.title} · ${position.department || 'Sin depto.'}${schedule}`,
+      };
+    });
   }, [positionsData]);
 
   const form = useForm<CandidateFormValues>({
@@ -132,6 +137,17 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
         notes: sanitize(values.notes),
         status: values.status || 'nuevo',
       } satisfies Partial<RecruitmentCandidate> & Pick<RecruitmentCandidate, 'full_name' | 'email' | 'status'>;
+
+      // Check for duplicate full_name
+      const { data: existingCandidate } = await (supabase as any)
+        .from('recruitment_candidates')
+        .select('id')
+        .eq('full_name', payload.full_name)
+        .maybeSingle();
+
+      if (existingCandidate) {
+        throw new Error('Ya existe un candidato con este nombre.');
+      }
 
       const { data: candidate, error } = await (supabase as any)
         .from('recruitment_candidates')
@@ -242,18 +258,19 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                 name="seniority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Seniority</FormLabel>
+                    <FormLabel>Nivel / Experiencia</FormLabel>
                     <Select disabled={mutation.isPending} onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona seniority" />
+                          <SelectValue placeholder="Selecciona nivel" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Junior">Junior</SelectItem>
-                        <SelectItem value="Semi Senior">Semi Senior</SelectItem>
-                        <SelectItem value="Senior">Senior</SelectItem>
-                        <SelectItem value="Lead">Lead</SelectItem>
+                        <SelectItem value="Sin experiencia">Sin experiencia</SelectItem>
+                        <SelectItem value="Junior">Junior / Inicial</SelectItem>
+                        <SelectItem value="Semi Senior">Semi Senior / Intermedio</SelectItem>
+                        <SelectItem value="Senior">Senior / Avanzado</SelectItem>
+                        <SelectItem value="Lead">Lead / Experto</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

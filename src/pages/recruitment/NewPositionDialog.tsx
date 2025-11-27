@@ -245,10 +245,21 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
                 name="seniority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Seniority</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Junior, Semi Senior, etc." disabled={mutation.isPending} />
-                    </FormControl>
+                    <FormLabel>Nivel / Experiencia</FormLabel>
+                    <Select disabled={mutation.isPending} onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona nivel" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Sin experiencia">Sin experiencia</SelectItem>
+                        <SelectItem value="Junior">Junior / Inicial</SelectItem>
+                        <SelectItem value="Semi Senior">Semi Senior / Intermedio</SelectItem>
+                        <SelectItem value="Senior">Senior / Avanzado</SelectItem>
+                        <SelectItem value="Lead">Lead / Experto</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

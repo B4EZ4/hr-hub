@@ -102,7 +102,7 @@ serve(async (req) => {
 
     // Parse body only for actions that need it
     let body: any = {};
-    if (action === 'login' || action === 'signup') {
+    if (action === 'login' || action === 'signup' || action === 'reset-password') {
       try {
         body = await req.json();
       } catch (e) {
@@ -399,6 +399,98 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ message: 'Logout exitoso' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Reset password (solo para administradores)
+    if (action === 'reset-password') {
+      const sessionToken = req.headers.get('x-session-token');
+
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ error: 'No autorizado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verificar sesión del administrador
+      const { data: session } = await supabase
+        .from('user_sessions')
+        .select('user_id')
+        .eq('token', sessionToken)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (!session) {
+        return new Response(
+          JSON.stringify({ error: 'Sesión inválida o expirada' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verificar que el usuario es admin
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user_id)
+        .in('role', ['superadmin', 'admin_rrhh'])
+        .maybeSingle();
+
+      if (!userRole) {
+        return new Response(
+          JSON.stringify({ error: 'Solo administradores pueden restablecer contraseñas' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { user_id, new_password } = body;
+
+      if (!user_id || !new_password) {
+        return new Response(
+          JSON.stringify({ error: 'ID de usuario y nueva contraseña son requeridos' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Validar longitud de contraseña
+      if (new_password.length < 8) {
+        return new Response(
+          JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Hash nueva contraseña
+      const passwordHash = await hashPassword(new_password);
+
+      // Actualizar contraseña
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          password_hash: passwordHash,
+          failed_login_attempts: 0,
+          is_locked: false
+        })
+        .eq('id', user_id);
+
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: 'Error al actualizar contraseña' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log acción
+      await supabase.from('auth_audit').insert({
+        user_id: user_id,
+        action: 'password_reset',
+        success: true,
+        metadata: { reset_by: session.user_id }
+      });
+
+      return new Response(
+        JSON.stringify({ message: 'Contraseña restablecida exitosamente' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

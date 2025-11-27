@@ -121,7 +121,7 @@ export default function AttendanceDashboard() {
       const { data, error } = await (supabase as any)
         .from("vacation_requests")
         .select("id, user_id, start_date, end_date, status")
-        .in("status", ["aprobado", "en_proceso"]);
+        .in("status", ["aprobado", "pendiente"]);
 
       if (error) {
         console.warn("vacation_requests table not found, skipping...");

@@ -3,7 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase-with-auth';
 import { getSessionToken } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Trash2 } from 'lucide-react';
+import { Trash2, KeyRound } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +43,9 @@ export default function UsersList() {
   const { canManageUsers } = useRoles();
   const [userToDelete, setUserToDelete] = React.useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [userToReset, setUserToReset] = React.useState<{ id: string; name: string } | null>(null);
+  const [showResetDialog, setShowResetDialog] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -45,12 +58,12 @@ export default function UsersList() {
       });
 
       if (error) throw error;
-      
+
       const result = data as { success: boolean; error?: string; message?: string };
       if (!result.success) {
         throw new Error(result.error || 'Error al eliminar usuario');
       }
-      
+
       return result;
     },
     onSuccess: () => {
@@ -74,6 +87,56 @@ export default function UsersList() {
   const handleDeleteConfirm = () => {
     if (userToDelete) {
       deleteMutation.mutate(userToDelete);
+    }
+  };
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      const token = getSessionToken();
+      if (!token) throw new Error('No session token');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth?action=reset-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'x-session-token': token,
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            new_password: password,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al restablecer contraseña');
+      }
+
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast.success('Contraseña restablecida exitosamente');
+      setShowResetDialog(false);
+      setUserToReset(null);
+      setNewPassword('');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Error al restablecer contraseña');
+    },
+  });
+
+  const handleResetClick = (userId: string, userName: string) => {
+    setUserToReset({ id: userId, name: userName });
+    setShowResetDialog(true);
+  };
+
+  const handleResetConfirm = () => {
+    if (userToReset && newPassword) {
+      resetPasswordMutation.mutate({ userId: userToReset.id, password: newPassword });
     }
   };
 
@@ -205,7 +268,11 @@ export default function UsersList() {
                     <Pencil className="mr-2 h-4 w-4" />
                     Editar
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem onClick={() => handleResetClick(row.id, row.full_name)}>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Restablecer contraseña
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={() => handleDeleteClick(row.id)}
                     className="text-destructive focus:text-destructive"
                   >
@@ -234,7 +301,7 @@ export default function UsersList() {
             }}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -243,6 +310,47 @@ export default function UsersList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restablecer contraseña</DialogTitle>
+            <DialogDescription>
+              Asigna una nueva contraseña para {userToReset?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nueva contraseña</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Mínimo 8 caracteres"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowResetDialog(false);
+                setUserToReset(null);
+                setNewPassword('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleResetConfirm}
+              disabled={!newPassword || newPassword.length < 8 || resetPasswordMutation.isPending}
+            >
+              {resetPasswordMutation.isPending ? 'Restableciendo...' : 'Restablecer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

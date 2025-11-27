@@ -31,7 +31,7 @@ export default function UserDetail() {
         .from('user_roles')
         .select('role')
         .eq('user_id', id)
-        .single();
+        .maybeSingle();
 
       if (roleError) console.log('No role found for user');
 

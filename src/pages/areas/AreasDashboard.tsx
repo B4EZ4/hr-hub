@@ -21,15 +21,15 @@ export const AreasDashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['areas-dashboard-stats'],
     queryFn: async () => {
-      const [areasRes, vacanciesRes, promotionsRes, activitiesRes] = await Promise.all([
-        supabase.from('areas').select('*', { count: 'exact' }).eq('status', 'activo'),
-        supabase.from('job_vacancies').select('*', { count: 'exact' }).eq('status', 'abierta'),
+      const [positionsRes, vacanciesRes, promotionsRes, activitiesRes] = await Promise.all([
+        supabase.from('positions').select('*', { count: 'exact' }).eq('status', 'active'),
+        supabase.from('recruitment_positions').select('*', { count: 'exact' }).eq('status', 'abierta'),
         supabase.from('promotions').select('*', { count: 'exact' }).eq('status', 'propuesta'),
         supabase.from('employee_activities').select('*', { count: 'exact' }).eq('status', 'pendiente'),
       ]);
 
       return {
-        activeAreas: areasRes.count || 0,
+        activePositions: positionsRes.count || 0,
         openVacancies: vacanciesRes.count || 0,
         pendingPromotions: promotionsRes.count || 0,
         pendingActivities: activitiesRes.count || 0,
@@ -69,7 +69,7 @@ export const AreasDashboard = () => {
     { name: 'Vacantes', valor: stats?.openVacancies || 0, fill: 'hsl(var(--chart-1))' },
     { name: 'Promociones', valor: stats?.pendingPromotions || 0, fill: 'hsl(var(--chart-2))' },
     { name: 'Actividades', valor: stats?.pendingActivities || 0, fill: 'hsl(var(--chart-3))' },
-    { name: 'Áreas', valor: stats?.activeAreas || 0, fill: 'hsl(var(--chart-4))' },
+    { name: 'Posiciones', valor: stats?.activePositions || 0, fill: 'hsl(var(--chart-4))' },
   ];
 
   if (isLoading) {
@@ -209,12 +209,12 @@ export const AreasDashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-primary/10 to-primary/5">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Áreas Activas</CardTitle>
+            <CardTitle className="text-sm font-medium">Posiciones Activas</CardTitle>
             <Users className="w-5 h-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{stats?.activeAreas}</div>
-            <p className="text-xs text-muted-foreground mt-1">Estructura organizacional</p>
+            <div className="text-3xl font-bold text-primary">{stats?.activePositions}</div>
+            <p className="text-xs text-muted-foreground mt-1">Catálogo de puestos</p>
           </CardContent>
         </Card>
 
@@ -260,7 +260,7 @@ export const AreasDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Link to="/areas/lista">
+            <Link to="/reclutamiento/posiciones">
               <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-primary/5">
                 <Users className="mr-3 h-5 w-5 text-primary" />
                 <div className="text-left">
@@ -269,7 +269,7 @@ export const AreasDashboard = () => {
                 </div>
               </Button>
             </Link>
-            <Link to="/areas/vacantes">
+            <Link to="/reclutamiento/posiciones?status=abierta">
               <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-chart-1/5">
                 <Briefcase className="mr-3 h-5 w-5 text-chart-1" />
                 <div className="text-left">

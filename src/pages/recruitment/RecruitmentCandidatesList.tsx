@@ -103,7 +103,7 @@ export default function RecruitmentCandidatesList() {
         </Badge>
       ),
     },
-    { header: 'Seniority', accessorKey: 'seniority' },
+    { header: 'Nivel', accessorKey: 'seniority' },
     { header: 'Fuente', accessorKey: 'source' },
     {
       header: 'Ubicación',

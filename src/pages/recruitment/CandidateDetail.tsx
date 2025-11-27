@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase-with-auth';
 import { signup } from '../../lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -605,7 +605,7 @@ export default function CandidateDetail() {
             {renderInfoRow('Email', candidate.email)}
             {renderInfoRow('Teléfono', candidate.phone)}
             {renderInfoRow('Fuente', candidate.source)}
-            {renderInfoRow('Seniority', candidate.seniority)}
+            {renderInfoRow('Nivel / Experiencia', candidate.seniority)}
             {renderInfoRow('Estado', candidate.status)}
             {renderInfoRow('Reclutador asignado', candidate.assigned_recruiter)}
           </CardContent>
@@ -638,10 +638,10 @@ export default function CandidateDetail() {
                 </div>
                 <Separator />
                 <div className="space-y-2 text-sm">
-                  <p className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Etapa actual</span>
                     <Badge>{latestApplication.current_stage || 'Sin etapa'}</Badge>
-                  </p>
+                  </div>
                   <p><span className="text-muted-foreground">Prioridad:</span> {latestApplication.priority || 'Media'}</p>
                   <p><span className="text-muted-foreground">Estado:</span> {latestApplication.status}</p>
                   <p>

@@ -44,9 +44,14 @@ const formatSchedule = (start?: string | null, end?: string | null) => {
   return `${format(start)} - ${format(end)}`;
 };
 
+import { useSearchParams } from 'react-router-dom';
+
 export default function RecruitmentPositionsList() {
   const { canManageRecruitment } = useRoles();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status');
+
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<RecruitmentPosition | null>(null);
   const [positionToDelete, setPositionToDelete] = useState<RecruitmentPosition | null>(null);
@@ -64,12 +69,16 @@ export default function RecruitmentPositionsList() {
     },
   });
 
+  const filteredPositions = positions.filter(position =>
+    statusFilter ? position.status === statusFilter : true
+  );
+
   const columns = [
     { header: 'Título', accessorKey: 'title' },
     { header: 'Departamento', accessorKey: 'department' },
     { header: 'Ubicación', accessorKey: 'location' },
     {
-      header: 'Seniority',
+      header: 'Nivel',
       accessorKey: 'seniority',
       cell: (value: string) => value || '-',
     },
@@ -150,7 +159,7 @@ export default function RecruitmentPositionsList() {
         </CardHeader>
         <CardContent>
           <DataTable
-            data={positions}
+            data={filteredPositions}
             columns={columns}
             searchable
             searchPlaceholder="Buscar por título, departamento o ubicación"
