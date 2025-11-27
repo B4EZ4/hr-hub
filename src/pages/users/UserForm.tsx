@@ -24,32 +24,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Fingerprint, Check, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Loader2, Fingerprint } from 'lucide-react';
 
 const userSchema = z.object({
   full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Email inválido').max(255),
-  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres').max(50).regex(/^[a-zA-Z0-9_@.]+$/, 'Solo letras, números, guión bajo, @ y punto').optional().or(z.literal('')),
+  username: z.string().max(50).regex(/^[a-zA-Z0-9_@.\s]*$/, 'Solo letras, números, guión bajo, @ y punto').optional().or(z.literal('')),
   phone: z.string().min(1, 'El teléfono es requerido'),
   status: z.enum(['activo', 'inactivo', 'suspendido']),
   role: z.enum(['superadmin', 'admin_rrhh']),
   password: z.string().optional(),
-  area_id: z.string().optional(),
-  position_id: z.string().optional(),
   biometric_id: z.number().int().min(1).max(127).optional(),
 });
 
@@ -61,34 +45,6 @@ export default function UserForm() {
   const queryClient = useQueryClient();
   const isEditMode = !!id;
   const [isEnrolling, setIsEnrolling] = useState(false);
-  const [openPosition, setOpenPosition] = useState(false);
-
-
-
-  // Fetch Positions and derive Areas
-  const { data: positions = [] } = useQuery({
-    queryKey: ['positions'],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('positions')
-        .select('id, title, area_id, status, work_start_time, work_end_time, areas(id, name)')
-        .eq('status', 'active') // Assuming 'active' or 'activo' based on schema default
-        .order('title');
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Derive unique areas from positions with schedule info
-  const areas = positions.reduce((acc: any[], pos: any) => {
-    if (pos.areas && !acc.find((a) => a.id === pos.areas.id)) {
-      const schedule = pos.work_start_time && pos.work_end_time
-        ? `(${pos.work_start_time.slice(0, 5)} - ${pos.work_end_time.slice(0, 5)})`
-        : '';
-      acc.push({ ...pos.areas, schedule });
-    }
-    return acc;
-  }, []).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', id],
@@ -113,18 +69,16 @@ export default function UserForm() {
 
       if (roleError) console.log('No role found for user');
 
-      // Obtener perfil (area y posicion)
+      // Obtener perfil (biometric_id)
       const { data: profileData } = await (supabase as any)
         .from('profiles')
-        .select('area_id, position_id, biometric_id')
+        .select('biometric_id')
         .eq('user_id', id)
         .single();
 
       return {
         ...userData,
         role: roleData?.role || 'admin_rrhh',
-        area_id: profileData?.area_id,
-        position_id: profileData?.position_id,
         biometric_id: profileData?.biometric_id,
       };
     },
@@ -141,13 +95,9 @@ export default function UserForm() {
       status: 'activo',
       role: 'admin_rrhh',
       password: '',
-      area_id: '',
-      position_id: '',
       biometric_id: undefined,
     },
   });
-
-  const watchedAreaId = form.watch('area_id');
 
   useEffect(() => {
     if (user) {
@@ -159,8 +109,6 @@ export default function UserForm() {
         status: (user.status || 'activo') as 'activo' | 'inactivo' | 'suspendido',
         role: 'admin_rrhh',
         password: '',
-        area_id: user.area_id || '',
-        position_id: user.position_id || '',
         biometric_id: user.biometric_id || undefined,
       });
     }
@@ -181,6 +129,7 @@ export default function UserForm() {
       }
 
       let userId = id;
+      const finalUsername = data.username || data.full_name;
 
       if (isEditMode) {
         // Actualizar usuario en la tabla users
@@ -191,6 +140,7 @@ export default function UserForm() {
             email: data.email,
             phone: data.phone,
             status: data.status as 'activo' | 'inactivo' | 'suspendido',
+            username: finalUsername,
           })
           .eq('id', id);
 
@@ -208,7 +158,7 @@ export default function UserForm() {
               'x-session-token': sessionToken || '',
             },
             body: JSON.stringify({
-              username: data.username,
+              username: finalUsername,
               email: data.email,
               password: data.password,
               full_name: data.full_name,
@@ -227,7 +177,7 @@ export default function UserForm() {
         userId = responseData.user.id;
       }
 
-      // Actualizar o crear perfil con area y posicion
+      // Actualizar o crear perfil
       if (userId) {
         const { error: profileError } = await (supabase as any)
           .from('profiles')
@@ -236,8 +186,6 @@ export default function UserForm() {
             full_name: data.full_name,
             email: data.email,
             phone: data.phone,
-            area_id: data.area_id || null,
-            position_id: data.position_id || null,
             biometric_id: data.biometric_id || null,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' });
@@ -311,9 +259,9 @@ export default function UserForm() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre de Usuario *</FormLabel>
+                  <FormLabel>Nombre de Usuario</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled={true} placeholder="Usuario para acceder al sistema" />
+                    <Input {...field} placeholder="Dejar vacío para usar nombre completo" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -329,97 +277,6 @@ export default function UserForm() {
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="area_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Área / Departamento</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar área" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background z-50">
-                      {areas.map((area: any) => (
-                        <SelectItem key={area.id} value={area.id}>
-                          {area.name} {area.schedule}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="position_id"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Puesto / Cargo</FormLabel>
-                  <Popover open={openPosition} onOpenChange={setOpenPosition}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openPosition}
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value
-                            ? positions.find((pos: any) => pos.id === field.value)?.title
-                            : "Seleccionar puesto"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="Buscar puesto..." />
-                        <CommandList>
-                          <CommandEmpty>No se encontraron puestos.</CommandEmpty>
-                          <CommandGroup>
-                            {positions
-                              .filter((pos: any) => {
-                                if (!watchedAreaId) return true;
-                                return pos.area_id === watchedAreaId;
-                              })
-                              .map((pos: any) => (
-                                <CommandItem
-                                  value={pos.title}
-                                  key={pos.id}
-                                  onSelect={() => {
-                                    form.setValue("position_id", pos.id);
-                                    setOpenPosition(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      pos.id === field.value
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    )}
-                                  />
-                                  {pos.title}
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}

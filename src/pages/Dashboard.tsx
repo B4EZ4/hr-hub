@@ -346,7 +346,7 @@ export default function Dashboard() {
             </h1>
           </div>
           <p className="text-lg text-muted-foreground">
-            Bienvenido/a, <span className="font-semibold text-foreground">{profile?.full_name || user?.email}</span>
+            Bienvenido/a, <span className="font-semibold text-foreground">{profile?.full_name || user?.full_name}</span>
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             {profile?.positions?.title && `${profile.positions.title} • `}
