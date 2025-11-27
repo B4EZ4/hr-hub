@@ -205,13 +205,7 @@ export default function AttendanceDashboard() {
               Supervisa el ingreso diario del personal, detecta tardanzas y controla ausencias en tiempo real.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline">Exportar reporte</Button>
-            <Button>
-              <Clock8 className="mr-2 h-4 w-4" />
-              Registrar evento
-            </Button>
-          </div>
+
         </div>
       </div>
 
