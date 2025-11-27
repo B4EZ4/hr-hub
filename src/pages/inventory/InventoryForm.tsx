@@ -141,7 +141,15 @@ export default function InventoryForm() {
                   <FormItem>
                     <FormLabel>Nombre</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nombre del artículo" {...field} />
+                      <Input
+                        placeholder="Nombre del artículo"
+                        {...field}
+                        onChange={(e) => {
+                          if (/^[a-zA-Z\u00C0-\u00FF\s]*$/.test(e.target.value)) {
+                            field.onChange(e.target.value);
+                          }
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -211,7 +219,6 @@ export default function InventoryForm() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="stock_quantity"
@@ -219,7 +226,17 @@ export default function InventoryForm() {
                     <FormItem>
                       <FormLabel>Cantidad en Stock</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input
+                          {...field}
+                          type="text"
+                          inputMode="numeric"
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '' || /^\d+$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -233,7 +250,17 @@ export default function InventoryForm() {
                     <FormItem>
                       <FormLabel>Stock Mínimo</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input
+                          {...field}
+                          type="text"
+                          inputMode="numeric"
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '' || /^\d+$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -247,7 +274,17 @@ export default function InventoryForm() {
                     <FormItem>
                       <FormLabel>Precio Unitario</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        <Input
+                          {...field}
+                          type="text"
+                          inputMode="decimal"
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
