@@ -40,12 +40,24 @@ const optionalText = z
   .or(z.literal(''));
 
 const candidateSchema = z.object({
-  full_name: z.string().min(3, 'Ingresa el nombre completo'),
-  email: z.string().email('Email inválido'),
-  phone: optionalText,
+  full_name: z
+    .string()
+    .min(3, 'Ingresa el nombre completo')
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, 'El nombre solo puede contener letras y espacios'),
+  email: z.string().email('Email inválido').regex(/@/, 'El email debe contener @'),
+  phone: z
+    .string()
+    .regex(/^\d{10}$/, 'El teléfono debe tener exactamente 10 dígitos')
+    .optional()
+    .or(z.literal('')),
   source: optionalText,
   seniority: optionalText,
-  current_location: optionalText,
+  current_location: z
+    .string()
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\/]*$/, 'La ubicación solo puede contener letras y espacios')
+    .max(255, 'Máximo 255 caracteres')
+    .optional()
+    .or(z.literal('')),
   resume_url: z
     .string()
     .url('URL inválida')
@@ -54,10 +66,24 @@ const candidateSchema = z.object({
   notes: z.string().max(2000, 'Máximo 2000 caracteres').optional().or(z.literal('')),
   status: z.enum(['nuevo', 'en_proceso', 'oferta', 'contratado', 'rechazado', 'archivado']).default('nuevo'),
   position_id: z.string().uuid().optional().nullable(),
-  // Campos legales mexicanos
-  rfc: optionalText,
-  curp: optionalText,
-  nss: optionalText,
+  // Campos legales mexicanos con validaciones específicas
+  rfc: z
+    .string()
+    .regex(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/, 'RFC inválido. Formato: 4 letras + 6 dígitos + 3 caracteres (ej: VECJ991130ABC)')
+    .length(13, 'El RFC debe tener 13 caracteres')
+    .optional()
+    .or(z.literal('')),
+  curp: z
+    .string()
+    .regex(/^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d$/, 'CURP inválido. Formato: 18 caracteres alfanuméricos (ej: VECJ991130HDFRLS09)')
+    .length(18, 'El CURP debe tener 18 caracteres')
+    .optional()
+    .or(z.literal('')),
+  nss: z
+    .string()
+    .regex(/^\d{11}$/, 'El NSS debe tener exactamente 11 dígitos')
+    .optional()
+    .or(z.literal('')),
   address: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
 });
 
@@ -107,6 +133,7 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
 
   const form = useForm<CandidateFormValues>({
     resolver: zodResolver(candidateSchema),
+    mode: 'onChange', // Validar en tiempo real mientras escribe
     defaultValues: {
       full_name: '',
       email: '',
@@ -237,7 +264,7 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>Teléfono</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={mutation.isPending} />
+                      <Input {...field} maxLength={10} disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -304,21 +331,21 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>RFC</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: VECJ991130***" disabled={mutation.isPending} />
+                      <Input {...field} placeholder="Ej: VECJ991130***" maxLength={13} disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              < FormField
+              <FormField
                 control={form.control}
                 name="curp"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>CURP</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: VECJ991130HDFRLS09" disabled={mutation.isPending} />
+                      <Input {...field} placeholder="Ej: VECJ991130HDFRLS09" maxLength={18} disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -332,7 +359,7 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>NSS (IMSS)</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: 12345678901" disabled={mutation.isPending} />
+                      <Input {...field} placeholder="Ej: 12345678901" maxLength={11} disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
