@@ -103,6 +103,10 @@ type NewCandidateDialogProps = {
 
 const sanitize = (value?: string | null) => (value && value.trim() !== '' ? value.trim() : null);
 
+// Funciones para filtrar caracteres no permitidos en tiempo real
+const filterNumericOnly = (value: string) => value.replace(/\D/g, '');
+const filterAlphanumericUppercase = (value: string) => value.replace(/[^A-Za-zÑñ&0-9]/g, '').toUpperCase();
+
 export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandidateDialogProps) {
   const queryClient = useQueryClient();
   const { data: positionsData, isLoading: positionsLoading } = useQuery({
@@ -264,7 +268,12 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>Teléfono</FormLabel>
                     <FormControl>
-                      <Input {...field} maxLength={10} disabled={mutation.isPending} />
+                      <Input
+                        {...field}
+                        maxLength={10}
+                        disabled={mutation.isPending}
+                        onChange={(e) => field.onChange(filterNumericOnly(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -331,7 +340,13 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>RFC</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: VECJ991130***" maxLength={13} disabled={mutation.isPending} />
+                      <Input
+                        {...field}
+                        placeholder="Ej: VECJ991130ABC"
+                        maxLength={13}
+                        disabled={mutation.isPending}
+                        onChange={(e) => field.onChange(filterAlphanumericUppercase(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -345,7 +360,13 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>CURP</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: VECJ991130HDFRLS09" maxLength={18} disabled={mutation.isPending} />
+                      <Input
+                        {...field}
+                        placeholder="Ej: VECJ991130HDFRLS09"
+                        maxLength={18}
+                        disabled={mutation.isPending}
+                        onChange={(e) => field.onChange(filterAlphanumericUppercase(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -359,7 +380,13 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                   <FormItem>
                     <FormLabel>NSS (IMSS)</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Ej: 12345678901" maxLength={11} disabled={mutation.isPending} />
+                      <Input
+                        {...field}
+                        placeholder="Ej: 12345678901"
+                        maxLength={11}
+                        disabled={mutation.isPending}
+                        onChange={(e) => field.onChange(filterNumericOnly(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
