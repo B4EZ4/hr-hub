@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
   CardContent,
@@ -8,41 +10,97 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CalendarDays,
   ClipboardCheck,
   Clock,
-  FileText,
   AlertCircle,
   TrendingUp,
   PlusCircle,
   Calendar,
   Search,
   History,
+  ArrowLeft
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
-// Mock data - Reemplazar con datos reales de React Query más adelante
-const mockStats = {
-  pendingRequests: 12,
-  approvedRequests: 45,
-  availableDaysAvg: 8.5,
-  activeEmployees: 150,
-};
+// IMPORTS DE TUS COMPONENTES
+import VacationRequest from "./VacationRequest";
+import VacationsList from "./VacationsList"; // <--- 1. IMPORTAR LA LISTA
 
 const VacationsDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // 2. ESTADO PARA CONTROLAR VISTAS ('dashboard' | 'form' | 'list')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list'>('dashboard');
 
-  // Simular carga de datos
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
+  // --- CONSULTA 1: Solicitudes Pendientes ---
+  const { data: pendingCount = 0, isLoading: loadingPending } = useQuery({
+    queryKey: ['dashboard-pending'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('vacation_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      if (error) throw error;
+      return count || 0;
+    }
+  });
+
+  // --- CONSULTA 2: Aprobadas este mes ---
+  const { data: approvedMonthCount = 0, isLoading: loadingApproved } = useQuery({
+    queryKey: ['dashboard-approved-month'],
+    queryFn: async () => {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+
+      const { count, error } = await supabase
+        .from('vacation_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved') 
+        .gte('start_date', firstDay)
+        .lte('start_date', lastDay);
+      
+      if (error) throw error;
+      return count || 0;
+    }
+  });
+
+  // --- CONSULTA 3: Promedio de Días Disponibles ---
+  const { data: avgDays = 0, isLoading: loadingAvg } = useQuery({
+    queryKey: ['dashboard-avg-balance'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vacation_balances')
+        .select('available_days')
+        .eq('year', new Date().getFullYear());
+
+      if (error) throw error;
+      if (!data || data.length === 0) return 0;
+
+      const total = data.reduce((acc, curr) => acc + (curr.available_days || 0), 0);
+      return Math.round((total / data.length) * 10) / 10;
+    }
+  });
+
+  // --- CONSULTA 4: Total de Empleados ---
+  const { data: activeEmployees = 0, isLoading: loadingEmployees } = useQuery({
+    queryKey: ['dashboard-active-employees'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('vacation_balances')
+        .select('*', { count: 'exact', head: true })
+        .eq('year', new Date().getFullYear());
+      
+      if (error) throw error;
+      return count || 0;
+    }
+  });
+
+  const isLoading = loadingPending || loadingApproved || loadingAvg || loadingEmployees;
 
   const containerClasses = "p-6 space-y-6 max-w-[1400px] mx-auto w-full";
   const gridClasses = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
@@ -63,6 +121,32 @@ const VacationsDashboard = () => {
     );
   }
 
+  // --- VISTA 1: Formulario de Solicitud (Nueva Solicitud) ---
+  if (currentView === 'form') {
+    return <VacationRequest onBack={() => setCurrentView('dashboard')} />;
+  }
+
+  // --- VISTA 2: Lista de Revisión (VacationsList) ---
+  if (currentView === 'list') {
+    return (
+      <div className={containerClasses}>
+        {/* Botón manual para volver, ya que VacationsList no tiene prop onBack */}
+        <div className="flex items-center gap-2 mb-4">
+          <Button 
+            variant="ghost" 
+            onClick={() => setCurrentView('dashboard')} 
+            className="pl-0 hover:pl-2 transition-all"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al Dashboard
+          </Button>
+        </div>
+        <VacationsList />
+      </div>
+    );
+  }
+
+  // --- VISTA 3: Dashboard Principal ---
   return (
     <div className={containerClasses}>
       {/* Header Section */}
@@ -75,9 +159,10 @@ const VacationsDashboard = () => {
             Sistema de solicitudes según Ley Federal del Trabajo (Vacaciones Dignas 2023)
           </p>
         </div>
-        {/* CAMBIO 1: Botón superior actualizado */}
+        
+        {/* Botón Nueva Solicitud */}
         <Button
-          onClick={() => navigate('/vacaciones/solicitar')}
+          onClick={() => setCurrentView('form')} // Cambia a vista formulario
           className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
         >
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -85,15 +170,21 @@ const VacationsDashboard = () => {
         </Button>
       </div>
 
-      {/* Stats Cards - (Sin cambios aquí) */}
+      {/* Stats Cards */}
       <div className={gridClasses}>
-        <Card className="bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+        {/* Tarjeta 1: Pendientes (Clickeable -> Va a Lista) */}
+        <Card 
+            className="bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 cursor-pointer hover:bg-blue-100/50 transition-colors"
+            onClick={() => setCurrentView('list')} // <-- CONEXIÓN AQUÍ
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Solicitudes Pendientes</CardTitle>
             <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{mockStats.pendingRequests}</div>
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+              {pendingCount}
+            </div>
             <p className="text-xs text-blue-600/80 dark:text-blue-400/80">Requieren revisión</p>
           </CardContent>
         </Card>
@@ -104,7 +195,9 @@ const VacationsDashboard = () => {
             <ClipboardCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-700 dark:text-green-300">{mockStats.approvedRequests}</div>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+              {approvedMonthCount}
+            </div>
             <p className="text-xs text-green-600/80 dark:text-green-400/80">Listas para documentación</p>
           </CardContent>
         </Card>
@@ -115,7 +208,9 @@ const VacationsDashboard = () => {
             <CalendarDays className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{mockStats.availableDaysAvg}</div>
+            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+              {avgDays}
+            </div>
             <p className="text-xs text-purple-600/80 dark:text-purple-400/80">Por empleado activo</p>
           </CardContent>
         </Card>
@@ -126,18 +221,19 @@ const VacationsDashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.activeEmployees}</div>
+            <div className="text-2xl font-bold">
+              {activeEmployees}
+            </div>
             <p className="text-xs text-muted-foreground">Con balance activo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions Section */}
+      {/* Acciones Rápidas */}
       <div className="space-y-4">
         <h2 className="text-2xl font-bold tracking-tight">Acciones Rápidas</h2>
         <div className={gridClasses}>
 
-          {/* CAMBIO 2: Tarjeta 1 mejorada (Buscador) */}
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-blue-500/50 group"
             onClick={() => navigate('/vacaciones/buscar')}
@@ -149,7 +245,6 @@ const VacationsDashboard = () => {
             </CardHeader>
           </Card>
 
-          {/* Tarjeta 2 (Calendario) con navegación */}
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-purple-500/50 group"
             onClick={() => navigate('/vacaciones/calendario')}
@@ -161,11 +256,8 @@ const VacationsDashboard = () => {
             </CardHeader>
           </Card>
 
-          {/* Tarjeta 3 (Historial) con navegación */}
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-green-500/50 group"
-            // Nota: Si aún no tienes ruta de historial, esto no hará nada o irá al dashboard.
-            // Puedes cambiarlo a '/vacaciones/lista' si prefieres.
             onClick={() => toast({ description: "Navegando al historial completo..." })}
           >
             <CardHeader className="pb-2">
@@ -175,15 +267,15 @@ const VacationsDashboard = () => {
             </CardHeader>
           </Card>
 
-          {/* Tarjeta 4 (Pendientes) */}
+          {/* Tarjeta 4: También lleva a la lista (igual que la tarjeta 1) */}
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-orange-500/50 group"
-            onClick={() => toast({ description: "Filtrando pendientes..." })}
+            onClick={() => setCurrentView('list')} // <-- CONEXIÓN AQUÍ
           >
             <CardHeader className="pb-2">
               <AlertCircle className="h-5 w-5 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
               <CardTitle className="text-lg">Revisar Pendientes</CardTitle>
-              <CardDescription>{mockStats.pendingRequests} solicitudes por revisar</CardDescription>
+              <CardDescription>{pendingCount} solicitudes por revisar</CardDescription>
             </CardHeader>
           </Card>
         </div>

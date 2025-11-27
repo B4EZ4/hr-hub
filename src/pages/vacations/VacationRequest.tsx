@@ -10,9 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, Calendar, Search, User, UserCheck } from 'lucide-react';
+import { Loader2, Calendar, Search, User, UserCheck, ArrowLeft } from 'lucide-react';
 
-// --- Esquema de validación ---
+// 1. Definición de las Props
+interface VacationRequestProps {
+  onBack: () => void;
+}
+
+// 2. Esquema de validación
 const vacationSchema = z.object({
   start_date: z.string().min(1, 'Fecha de inicio requerida'),
   end_date: z.string().min(1, 'Fecha de fin requerida'),
@@ -28,24 +33,26 @@ const vacationSchema = z.object({
 
 type VacationFormData = z.infer<typeof vacationSchema>;
 
-// --- Tipos para el usuario ---
+// 3. Tipos para el usuario (ACTUALIZADO SEGÚN TU SQL)
+// Antes tenías first_name y last_name, ahora usamos full_name y user_id
 type Profile = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email?: string;
-  department?: string; // Asumiendo que existe este campo
+  id: string;        // ID del perfil
+  user_id: string;   // ID del usuario (necesario para las relaciones)
+  full_name: string; // Columna real en tu DB
+  email: string;
+  department?: string;
 };
 
-export default function VacationRequest() {
+// 4. Componente Principal
+const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
   const queryClient = useQueryClient();
 
-  // Estados para la búsqueda y selección de usuario
+  // Estados
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // 1. Query para buscar usuarios (Profiles)
+  // --- QUERY CORREGIDA: Busca por full_name ---
   const { data: searchResults } = useQuery({
     queryKey: ['profile-search', searchTerm],
     queryFn: async () => {
@@ -54,30 +61,38 @@ export default function VacationRequest() {
       const { data, error } = await (supabase as any)
         .from('profiles')
         .select('*')
-        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+        // CAMBIO: Buscamos en 'full_name' o 'email' porque 'first_name' no existe
+        .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
         .limit(5);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error buscando perfil:", error);
+        throw error;
+      } 
       return data as Profile[];
     },
     enabled: searchTerm.length >= 2 && isSearching,
   });
 
-  // 2. Query de balance (Depende del usuario SELECCIONADO, no del logueado)
+  // --- QUERY DE BALANCE CORREGIDA: Usa user_id ---
   const { data: balance } = useQuery({
-    queryKey: ['vacation-balance', selectedUser?.id],
+    queryKey: ['vacation-balance', selectedUser?.user_id], // Usamos user_id, no id del perfil
     queryFn: async () => {
       if (!selectedUser) return null;
       const currentYear = new Date().getFullYear();
+      
       const { data, error } = await (supabase as any)
         .from('vacation_balances')
         .select('*')
-        .eq('user_id', selectedUser.id)
+        .eq('user_id', selectedUser.user_id) // Relación correcta con user_id
         .eq('year', currentYear)
         .single();
 
+      // Si no hay balance, devolvemos uno por defecto pero limpio
       if (error && error.code !== 'PGRST116') throw error;
-      return data || { total_days: 22, used_days: 0, remaining_days: 22 };
+      // Nota: Verifica si tu tabla usa 'available_days' o 'remaining_days'. 
+      // En tu SQL anterior era 'available_days', así que mapeamos eso.
+      return data || { total_days: 12, used_days: 0, available_days: 12 };
     },
     enabled: !!selectedUser,
   });
@@ -104,20 +119,22 @@ export default function VacationRequest() {
       if (!selectedUser) throw new Error('Debes seleccionar un usuario primero');
 
       const days = calculateDays(data.start_date, data.end_date);
+      // Ajuste: Usamos available_days según tu SQL de balances
+      const available = balance?.available_days ?? 12;
 
-      if (balance && days > balance.remaining_days) {
-        throw new Error(`El usuario no tiene suficientes días disponibles. Disponibles: ${balance.remaining_days}`);
+      if (balance && days > available) {
+        throw new Error(`El usuario no tiene suficientes días disponibles. Disponibles: ${available}`);
       }
 
       const { error } = await (supabase as any)
         .from('vacation_requests')
         .insert([{
-          user_id: selectedUser.id, // Usamos el ID del usuario seleccionado
+          user_id: selectedUser.user_id, // IMPORTANTE: Usar el UUID de usuario, no del perfil
           start_date: data.start_date,
           end_date: data.end_date,
           days_requested: days,
-          reason: data.reason,
-          status: 'pendiente', // O 'aprobado' si lo hace RRHH directamente
+          employee_note: data.reason, // En tu SQL se llama 'employee_note', no 'reason'
+          status: 'pending',          // En tu SQL el default es 'pending'
         }]);
 
       if (error) throw error;
@@ -125,8 +142,10 @@ export default function VacationRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vacation-requests'] });
       queryClient.invalidateQueries({ queryKey: ['vacation-balance'] });
-      toast.success(`Solicitud generada para ${selectedUser?.first_name}`);
+      // Usamos full_name para el toast
+      toast.success(`Solicitud generada para ${selectedUser?.full_name}`);
       form.reset();
+      onBack(); 
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al enviar solicitud');
@@ -137,15 +156,36 @@ export default function VacationRequest() {
     setSelectedUser(user);
     setSearchTerm('');
     setIsSearching(false);
-    form.reset(); // Reiniciar formulario al cambiar de usuario
+    form.reset();
   };
 
   const startDate = form.watch('start_date');
   const endDate = form.watch('end_date');
   const requestedDays = startDate && endDate ? calculateDays(startDate, endDate) : 0;
+  
+  // Helper para mostrar días disponibles seguro
+  const diasDisponibles = balance?.available_days ?? 12;
+
+  // Helper para obtener iniciales del nombre completo
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Botón Volver */}
+      <div className="flex items-center gap-2 mb-4">
+        <Button variant="ghost" onClick={onBack} className="pl-0 hover:pl-2 transition-all">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Volver al Dashboard
+        </Button>
+      </div>
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Vacaciones</h1>
         <p className="text-muted-foreground">
@@ -183,15 +223,22 @@ export default function VacationRequest() {
                     onClick={() => handleSelectUser(profile)}
                   >
                     <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                      {profile.first_name?.[0]}{profile.last_name?.[0]}
+                      {getInitials(profile.full_name)}
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{profile.first_name} {profile.last_name}</p>
+                      {/* CAMBIO: Mostrar full_name */}
+                      <p className="text-sm font-medium">{profile.full_name}</p>
                       <p className="text-xs text-muted-foreground">{profile.email}</p>
                     </div>
                   </div>
                 ))}
               </div>
+            )}
+            {/* Mensaje si no hay resultados */}
+            {isSearching && searchTerm.length >= 2 && searchResults?.length === 0 && (
+               <div className="absolute z-10 w-full mt-1 p-3 bg-white border rounded-md shadow-lg text-sm text-muted-foreground">
+                 No se encontraron colaboradores.
+               </div>
             )}
           </div>
         </CardContent>
@@ -211,13 +258,13 @@ export default function VacationRequest() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Nombre Completo</label>
-                  <Input value={`${selectedUser.first_name} ${selectedUser.last_name}`} disabled className="bg-muted/50" />
+                  {/* CAMBIO: Mostrar full_name */}
+                  <Input value={selectedUser.full_name} disabled className="bg-muted/50" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Email</label>
                   <Input value={selectedUser.email || 'No registrado'} disabled className="bg-muted/50" />
                 </div>
-                {/* Campo opcional si tu tabla profiles tiene departamento */}
                 <div className="space-y-1 md:col-span-2">
                   <label className="text-xs font-medium text-muted-foreground">Departamento / Área</label>
                   <Input value={selectedUser.department || 'General'} disabled className="bg-muted/50" />
@@ -233,7 +280,8 @@ export default function VacationRequest() {
                 <CardTitle className="text-sm font-medium">Días Totales</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{balance?.total_days || 22}</p>
+                {/* Nota: Asumo 12 días base si no hay dato, ajústalo según tu ley */}
+                <p className="text-2xl font-bold">{balance?.total_days || 12}</p>
               </CardContent>
             </Card>
 
@@ -251,7 +299,8 @@ export default function VacationRequest() {
                 <CardTitle className="text-sm font-medium">Días Disponibles</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-green-600">{balance?.remaining_days || 22}</p>
+                {/* CAMBIO: available_days según tu SQL */}
+                <p className="text-2xl font-bold text-green-600">{diasDisponibles}</p>
               </CardContent>
             </Card>
           </div>
@@ -302,9 +351,9 @@ export default function VacationRequest() {
                       <Calendar className="h-5 w-5 text-muted-foreground" />
                       <span className="text-sm">
                         Días solicitados: <strong>{requestedDays}</strong>
-                        {balance && requestedDays > balance.remaining_days && (
+                        {requestedDays > diasDisponibles && (
                           <span className="text-destructive ml-2 font-medium">
-                            (Excede días disponibles: {balance.remaining_days})
+                            (Excede días disponibles: {diasDisponibles})
                           </span>
                         )}
                       </span>
@@ -325,10 +374,15 @@ export default function VacationRequest() {
                     )}
                   />
 
-                  <Button type="submit" disabled={mutation.isPending || (balance ? requestedDays > balance.remaining_days : false)}>
-                    {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Generar Solicitud
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={onBack}>
+                        Cancelar
+                    </Button>
+                    <Button type="submit" disabled={mutation.isPending || (requestedDays > diasDisponibles)}>
+                        {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Generar Solicitud
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </CardContent>
@@ -344,3 +398,5 @@ export default function VacationRequest() {
     </div>
   );
 }
+
+export default VacationRequest;
