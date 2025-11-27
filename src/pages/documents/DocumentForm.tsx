@@ -470,7 +470,7 @@ export default function DocumentForm() {
                 </div>
                 {!uploadedFile && !isEditing && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Debes seleccionar un archivo antes de guardar el documento
+                    Debes seleccionar un archivo PDF (.pdf) antes de guardar el documento
                   </p>
                 )}
               </div>

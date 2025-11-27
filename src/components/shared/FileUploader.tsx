@@ -18,7 +18,7 @@ interface FileUploaderProps {
 export function FileUploader({
   bucket,
   path = '',
-  accept,
+  accept = '.pdf',
   maxSize = 50,
   onFileSelected,
   onUploadError,
@@ -32,6 +32,13 @@ export function FileUploader({
   const validateFile = useCallback((f: globalThis.File): string | null => {
     const maxSizeBytes = maxSize * 1024 * 1024;
     if (f.size > maxSizeBytes) return `El archivo excede el tamaño máximo de ${maxSize}MB`;
+
+    // Accept only PDF files (by MIME type or .pdf extension as fallback)
+    const isPdfMime = f.type === 'application/pdf';
+    const nameLower = f.name.toLowerCase();
+    const hasPdfExt = nameLower.endsWith('.pdf');
+    if (!isPdfMime && !hasPdfExt) return 'Solo se permiten archivos PDF (.pdf)';
+
     return null;
   }, [maxSize]);
 
@@ -56,7 +63,7 @@ export function FileUploader({
     }
     setFile(f);
     onFileSelected?.(f);
-  }, [maxSize, onFileSelected, onUploadError, validateFile]);
+  }, [onFileSelected, onUploadError, validateFile]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -103,8 +110,8 @@ export function FileUploader({
 
         {!file ? (
           <div className="flex flex-col items-center justify-center text-center p-6">
-            <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
-            <p className="text-sm font-medium mb-1">Arrastra un archivo aquí o haz clic para seleccionar</p>
+              <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
+              <p className="text-sm font-medium mb-1">Arrastra un PDF (.pdf) aquí o haz clic para seleccionar</p>
             <p className="text-xs text-muted-foreground">Tamaño máximo: {maxSize}MB</p>
           </div>
         ) : (
