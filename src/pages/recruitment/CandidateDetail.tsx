@@ -424,7 +424,7 @@ export default function CandidateDetail() {
         .toString(36)
         .slice(2, 6)}`;
 
-      const { error: contractError } = await (supabase as any)
+      const { data: newContract, error: contractError } = await (supabase as any)
         .from('contracts')
         .insert({
           user_id: userId,
@@ -435,12 +435,45 @@ export default function CandidateDetail() {
           department: position?.department || null,
           position: position?.title || 'Sin especificar',
           salary: application.salary_expectation || null,
-        });
+        })
+        .select('id')
+        .single();
 
       if (contractError) {
         console.error('Error creating contract:', contractError);
         // Don't fail the whole process if contract creation fails, but log it
         toast.error('Empleado contratado, pero hubo un error al crear el registro de contrato.');
+      } else if (newContract?.id) {
+        // Generate PDF contract
+        try {
+          const { getSessionToken } = await import('@/lib/auth');
+          const token = getSessionToken();
+
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-contract`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                'x-session-token': token || '',
+              },
+              body: JSON.stringify({
+                contract_id: newContract.id,
+              }),
+            }
+          );
+
+          if (response.ok) {
+            const { file_url } = await response.json();
+            console.log('Contract PDF generated:', file_url);
+          } else {
+            console.error('Error generating PDF:', await response.text());
+          }
+        } catch (pdfError) {
+          console.error('PDF generation error:', pdfError);
+          // No interrumpir el flujo si falla el PDF
+        }
       }
 
       await (supabase as any)

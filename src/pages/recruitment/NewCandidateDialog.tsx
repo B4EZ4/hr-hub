@@ -54,6 +54,11 @@ const candidateSchema = z.object({
   notes: z.string().max(2000, 'Máximo 2000 caracteres').optional().or(z.literal('')),
   status: z.enum(['nuevo', 'en_proceso', 'oferta', 'contratado', 'rechazado', 'archivado']).default('nuevo'),
   position_id: z.string().uuid().optional().nullable(),
+  // Campos legales mexicanos
+  rfc: optionalText,
+  curp: optionalText,
+  nss: optionalText,
+  address: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
 });
 
 export type CandidateFormValues = z.infer<typeof candidateSchema>;
@@ -286,6 +291,62 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
                     <FormLabel>Ubicación</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="Ciudad / País" disabled={mutation.isPending} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rfc"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>RFC</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Ej: VECJ991130***" disabled={mutation.isPending} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              < FormField
+                control={form.control}
+                name="curp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CURP</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Ej: VECJ991130HDFRLS09" disabled={mutation.isPending} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="nss"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>NSS (IMSS)</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Ej: 12345678901" disabled={mutation.isPending} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Dirección completa</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Calle, número, colonia, ciudad" disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

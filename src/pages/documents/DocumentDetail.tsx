@@ -34,7 +34,7 @@ export default function DocumentDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
-  
+
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
 
@@ -61,7 +61,7 @@ export default function DocumentDetail() {
     mutationFn: async () => {
       const { error } = await (supabase as any)
         .from('documents')
-        .update({ 
+        .update({
           estado: 'validado',
           updated_at: new Date().toISOString()
         })
@@ -86,7 +86,7 @@ export default function DocumentDetail() {
     mutationFn: async (motivo: string) => {
       const { error } = await (supabase as any)
         .from('documents')
-        .update({ 
+        .update({
           estado: 'rechazado',
           motivo_rechazo: motivo,
           updated_at: new Date().toISOString()
@@ -114,9 +114,10 @@ export default function DocumentDetail() {
     mutationFn: async () => {
       // Delete file from storage
       if (document?.file_path) {
-        await supabase.storage.from('documents').remove([document.file_path]);
+        const bucket = document.category === 'contrato' ? 'contracts' : 'documents';
+        await supabase.storage.from(bucket).remove([document.file_path]);
       }
-      
+
       // Delete record from database
       const { error } = await (supabase as any)
         .from('documents')
@@ -194,12 +195,16 @@ export default function DocumentDetail() {
   };
 
   const handleDownload = () => {
-    const { data } = supabase.storage.from('documents').getPublicUrl(document.file_path);
+    // Contratos están en el bucket 'contracts', otros documentos en 'documents'
+    const bucket = document.category === 'contrato' ? 'contracts' : 'documents';
+    const { data } = supabase.storage.from(bucket).getPublicUrl(document.file_path);
     window.open(data.publicUrl, '_blank');
   };
 
   const handleView = () => {
-    const { data } = supabase.storage.from('documents').getPublicUrl(document.file_path);
+    // Contratos están en el bucket 'contracts', otros documentos en 'documents'
+    const bucket = document.category === 'contrato' ? 'contracts' : 'documents';
+    const { data } = supabase.storage.from(bucket).getPublicUrl(document.file_path);
     window.open(data.publicUrl, '_blank');
   };
 
@@ -316,8 +321,8 @@ export default function DocumentDetail() {
 
             {canManageUsers && document.estado === 'pendiente' && (
               <>
-                <Button 
-                  onClick={() => validarMutation.mutate()} 
+                <Button
+                  onClick={() => validarMutation.mutate()}
                   variant="default"
                   disabled={validarMutation.isPending}
                   className="bg-green-600 hover:bg-green-700"
@@ -325,8 +330,8 @@ export default function DocumentDetail() {
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Validar
                 </Button>
-                <Button 
-                  onClick={() => setShowRejectDialog(true)} 
+                <Button
+                  onClick={() => setShowRejectDialog(true)}
                   variant="destructive"
                 >
                   <XCircle className="mr-2 h-4 w-4" />
@@ -337,7 +342,7 @@ export default function DocumentDetail() {
 
             {canManageUsers && (
               <>
-                
+
                 <Button onClick={() => navigate(`/documentos/${id}/edit`)} variant="outline">
                   <Pencil className="mr-2 h-4 w-4" />
                   Editar
@@ -371,7 +376,7 @@ export default function DocumentDetail() {
             )}
           </div>
 
-          
+
         </CardContent>
       </Card>
 
