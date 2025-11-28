@@ -39,13 +39,44 @@ const optionalText = z
     .or(z.literal(''));
 
 const candidateSchema = z.object({
-    full_name: z.string().min(3, 'Ingresa el nombre completo'),
-    email: z.string().email('Email inválido'),
-    phone: optionalText,
+    full_name: z
+        .string()
+        .min(3, 'Ingresa el nombre completo')
+        .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, 'El nombre solo puede contener letras y espacios'),
+    email: z.string().email('Email inválido').regex(/@/, 'El email debe contener @'),
+    phone: z
+        .string()
+        .regex(/^\d{10}$/, 'El teléfono debe tener exactamente 10 dígitos')
+        .optional()
+        .or(z.literal('')),
     source: optionalText,
     seniority: optionalText,
-    current_location: optionalText,
+    current_location: z
+        .string()
+        .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\/]*$/, 'La ubicación solo puede contener letras y espacios')
+        .max(255, 'Máximo 255 caracteres')
+        .optional()
+        .or(z.literal('')),
     status: z.enum(['nuevo', 'en_proceso', 'oferta', 'contratado', 'rechazado', 'archivado']),
+    // Campos legales mexicanos con validaciones específicas
+    rfc: z
+        .string()
+        .regex(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/, 'RFC inválido. Formato: 4 letras + 6 dígitos + 3 caracteres (ej: VECJ991130ABC)')
+        .length(13, 'El RFC debe tener 13 caracteres')
+        .optional()
+        .or(z.literal('')),
+    curp: z
+        .string()
+        .regex(/^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d$/, 'CURP inválido. Formato: 18 caracteres alfanuméricos (ej: VECJ991130HDFRLS09)')
+        .length(18, 'El CURP debe tener 18 caracteres')
+        .optional()
+        .or(z.literal('')),
+    nss: z
+        .string()
+        .regex(/^\d{11}$/, 'El NSS debe tener exactamente 11 dígitos')
+        .optional()
+        .or(z.literal('')),
+    address: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
 });
 
 export type CandidateFormValues = z.infer<typeof candidateSchema>;
@@ -60,6 +91,10 @@ type UpdateCandidateDialogProps = {
 };
 
 const sanitize = (value?: string | null) => (value && value.trim() !== '' ? value.trim() : null);
+
+// Funciones para filtrar caracteres no permitidos en tiempo real
+const filterNumericOnly = (value: string) => value.replace(/\D/g, '');
+const filterAlphanumericUppercase = (value: string) => value.replace(/[^A-Za-zÑñ&0-9]/g, '').toUpperCase();
 
 export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated }: UpdateCandidateDialogProps) {
     const queryClient = useQueryClient();
@@ -183,7 +218,13 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                                     <FormItem>
                                         <FormLabel>Teléfono</FormLabel>
                                         <FormControl>
-                                            <Input {...field} disabled={mutation.isPending} />
+                                            <Input
+                                                {...field}
+                                                placeholder="Ej: 7771234567"
+                                                maxLength={10}
+                                                disabled={mutation.isPending}
+                                                onChange={(e) => field.onChange(filterNumericOnly(e.target.value))}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -237,6 +278,80 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                                         <FormLabel>Ubicación</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="Ciudad / País" disabled={mutation.isPending} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="rfc"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>RFC</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                placeholder="Ej: VECJ991130ABC"
+                                                maxLength={13}
+                                                disabled={mutation.isPending}
+                                                onChange={(e) => field.onChange(filterAlphanumericUppercase(e.target.value))}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="curp"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>CURP</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                placeholder="Ej: VECJ991130HDFRLS09"
+                                                maxLength={18}
+                                                disabled={mutation.isPending}
+                                                onChange={(e) => field.onChange(filterAlphanumericUppercase(e.target.value))}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="nss"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>NSS (IMSS)</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                placeholder="Ej: 12345678901"
+                                                maxLength={11}
+                                                disabled={mutation.isPending}
+                                                onChange={(e) => field.onChange(filterNumericOnly(e.target.value))}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="address"
+                                render={({ field }) => (
+                                    <FormItem className="md:col-span-2">
+                                        <FormLabel>Dirección completa</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="Calle, número, colonia, ciudad" disabled={mutation.isPending} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

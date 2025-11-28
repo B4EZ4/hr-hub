@@ -13,6 +13,12 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, Clock8, UserCheck, Users, Edit } from "lucide-react";
 import { EditAttendanceDialog } from "@/components/attendance/EditAttendanceDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"] & {
   profiles?: {
@@ -125,6 +131,28 @@ export default function AttendanceDashboard() {
 
       if (error) {
         console.warn("vacation_requests table not found, skipping...");
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  const { data: incidents = [] } = useQuery({
+    queryKey: ["attendance-incidents", todayIso],
+    queryFn: async () => {
+      const start = new Date(today);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(today);
+      end.setHours(23, 59, 59, 999);
+
+      const { data, error } = await (supabase as any)
+        .from("incidents")
+        .select("id, reported_by, title, severity")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
+
+      if (error) {
+        console.warn("incidents table query error", error);
         return [];
       }
       return data || [];
@@ -282,21 +310,55 @@ export default function AttendanceDashboard() {
                       const statusKey = record.status || "pendiente";
                       const status = statusVariant[statusKey] || statusVariant.pendiente;
                       const employee = employeesMap.get(record.user_id);
-                      // Support both view format (flat) and direct query format (nested)
                       const employeeName = (record as any).full_name || record.profiles?.full_name || employee?.full_name || "Empleado";
                       const position = (record as any).position_title || record.profiles?.positions?.title;
                       const area = (record as any).area_name || record.profiles?.areas?.name;
+
+                      // --- INTEGRACIÓN MÓDULOS ---
+                      const employeeAbsence = absences.find(a =>
+                        a.user_id === record.user_id &&
+                        a.status === 'aprobado' &&
+                        isWithinInterval(new Date(todayIso), { start: new Date(a.start_date), end: new Date(a.end_date) })
+                      );
+
+                      const employeeIncident = incidents.find((i: any) => i.reported_by === record.user_id);
+
+                      let displayStatus = status;
+                      let statusBadgeVariant = status.variant;
+
+                      if (employeeAbsence) {
+                        displayStatus = { label: "Vacaciones", variant: "default" };
+                        statusBadgeVariant = "secondary";
+                      }
 
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <Avatar className="h-9 w-9">
-                                <AvatarImage src={(record as any).avatar_url || employee?.avatar_url || undefined} alt={employeeName} />
-                                <AvatarFallback>{employeeName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                              <Avatar>
+                                <AvatarImage src={(record as any).avatar_url || employee?.avatar_url} />
+                                <AvatarFallback>
+                                  {employeeName?.substring(0, 2).toUpperCase() || "EM"}
+                                </AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-semibold">{employeeName}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">
+                                    {employeeName}
+                                  </p>
+                                  {employeeIncident && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Incidente reportado: {(employeeIncident as any).title}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
                                 <p className="text-sm text-muted-foreground">
                                   {position || area || "Sin asignar"}
                                 </p>
@@ -312,7 +374,7 @@ export default function AttendanceDashboard() {
                           <TableCell>{record.check_in ? format(new Date(record.check_in), "HH:mm") : "—"}</TableCell>
                           <TableCell>{record.check_out ? format(new Date(record.check_out), "HH:mm") : "—"}</TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={status.variant}>{status.label}</Badge>
+                            <Badge variant={statusBadgeVariant}>{displayStatus.label}</Badge>
                           </TableCell>
                           <TableCell>
                             <Button
@@ -397,7 +459,7 @@ export default function AttendanceDashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div >
 
       <Card>
         <CardHeader>
@@ -437,6 +499,6 @@ export default function AttendanceDashboard() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
       />
-    </div>
+    </div >
   );
 }

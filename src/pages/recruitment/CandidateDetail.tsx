@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, ShieldAlert, CheckCircle2, CalendarClock, Pencil, Trash2, Loader2, Clock4 } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, CheckCircle2, CalendarClock, Pencil, Trash2, Loader2, Clock4, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Tables } from '@/integrations/supabase/types';
@@ -143,6 +143,7 @@ export default function CandidateDetail() {
   const [selectedInterview, setSelectedInterview] = useState<InterviewRow | null>(null);
   const [interviewToDelete, setInterviewToDelete] = useState<InterviewRow | null>(null);
   const [isConfirmHireOpen, setConfirmHireOpen] = useState(false);
+  const [isConfirmRejectOpen, setConfirmRejectOpen] = useState(false);
 
   const generateTempPassword = () => {
     const randomSegment = Math.random().toString(36).slice(-8);
@@ -244,6 +245,34 @@ export default function CandidateDetail() {
     candidate: CandidateDetailData;
     application: CandidateDetailData['recruitment_applications'][number];
   };
+
+  const rejectCandidateMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any)
+        .from('recruitment_candidates')
+        .update({ status: 'rechazado' })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Also update all applications to rejected
+      if (candidate?.recruitment_applications?.length) {
+        await (supabase as any)
+          .from('recruitment_applications')
+          .update({ status: 'rechazado', current_stage: 'rechazado' })
+          .in('id', candidate.recruitment_applications.map(app => app.id));
+      }
+    },
+    onSuccess: () => {
+      toast.success('Candidato rechazado');
+      setConfirmRejectOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['recruitment-candidates'] });
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'No se pudo rechazar el candidato');
+    },
+  });
 
   const confirmHireMutation = useMutation({
     mutationFn: async ({ candidate, application }: ConfirmHirePayload) => {
@@ -418,6 +447,57 @@ export default function CandidateDetail() {
         .eq('id', application.id);
 
       if (applicationError) throw applicationError;
+
+      // --- INTEGRACIÓN MÓDULOS ---
+
+      // 1. Inicializar Balance de Vacaciones (12 días por defecto)
+      const currentYear = new Date().getFullYear();
+      const { error: vacationError } = await (supabase as any)
+        .from('vacation_balances')
+        .insert({
+          user_id: userId,
+          year: currentYear,
+          total_days: 12,
+          available_days: 12,
+          used_days: 0
+        });
+
+      if (vacationError) {
+        console.error('Error initializing vacation balance:', vacationError);
+        // No lanzamos error para no detener el flujo principal
+      }
+
+      // 2. Notificación de Seguridad e Higiene (Inducción)
+      // Si el departamento es operativo, notificar a RRHH/Seguridad
+      const departmentName = position?.department || '';
+      const isOperational = ['Limpieza', 'Mantenimiento', 'Operaciones', 'Seguridad', 'Logística'].some(d =>
+        departmentName.toLowerCase().includes(d.toLowerCase())
+      );
+
+      if (isOperational) {
+        // Buscar admins de RRHH para notificar (asumiendo que ellos gestionan seguridad por ahora)
+        const { data: hrAdmins } = await (supabase as any)
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'admin_rrhh');
+
+        if (hrAdmins && hrAdmins.length > 0) {
+          const notifications = hrAdmins.map((admin: any) => ({
+            user_id: admin.user_id,
+            title: '⚠️ Inducción de Seguridad Requerida',
+            message: `El nuevo ingreso ${candidate.full_name} (${departmentName}) requiere inducción de seguridad inmediata.`,
+            type: 'security_alert',
+            link: `/employees/${userId}` // Enlace al perfil del empleado
+          }));
+
+          const { error: notifError } = await (supabase as any)
+            .from('notifications')
+            .insert(notifications);
+
+          if (notifError) console.error('Error sending safety notification:', notifError);
+        }
+      }
+
 
       // Create contract record (match DB schema: requires contract_number and `type`)
       const contractNumber = `CNT-${Date.now().toString().slice(-6)}-${Math.random()
@@ -610,6 +690,15 @@ export default function CandidateDetail() {
                   </TooltipContent>
                 )}
               </Tooltip>
+              <Button
+                variant="destructive"
+                size="lg"
+                disabled={candidate.status === 'rechazado' || candidate.status === 'contratado'}
+                onClick={() => setConfirmRejectOpen(true)}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Rechazar Candidato
+              </Button>
             </div>
           </TooltipProvider>
         )}
@@ -641,6 +730,10 @@ export default function CandidateDetail() {
             {renderInfoRow('Nivel / Experiencia', candidate.seniority)}
             {renderInfoRow('Estado', candidate.status)}
             {renderInfoRow('Reclutador asignado', candidate.assigned_recruiter)}
+            {renderInfoRow('RFC', candidate.rfc)}
+            {renderInfoRow('CURP', candidate.curp)}
+            {renderInfoRow('NSS (IMSS)', candidate.nss)}
+            {renderInfoRow('Dirección', candidate.address)}
           </CardContent>
         </Card>
 
@@ -881,6 +974,41 @@ export default function CandidateDetail() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {canManageRecruitment && (
+        <AlertDialog
+          open={isConfirmRejectOpen}
+          onOpenChange={(open) => {
+            if (!rejectCandidateMutation.isPending) {
+              setConfirmRejectOpen(open);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rechazar candidato</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Estás seguro de que deseas rechazar a este candidato? Esta acción actualizará el estado del candidato y todas sus aplicaciones a "rechazado".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rejectCandidateMutation.isPending}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => rejectCandidateMutation.mutate()}
+                disabled={rejectCandidateMutation.isPending}
+              >
+                {rejectCandidateMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Rechazar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
