@@ -4,12 +4,15 @@ import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input'; // Dejé el import aunque no se usaba en el snippet original, por si acaso.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, FileText, Download, Eye, Filter } from 'lucide-react';
+// 1. MODIFICADO: Agregamos LinkIcon para el botón virtual
+import { Plus, FileText, Download, Eye, Filter, Link as LinkIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRoles } from '@/hooks/useRoles';
 import { useState } from 'react';
+// 2. MODIFICADO: Agregamos toast para notificar al usuario
+import { toast } from 'sonner';
 
 type EstadoFilter = 'todos' | 'pendiente' | 'validado' | 'rechazado';
 
@@ -20,6 +23,7 @@ export default function DocumentsList() {
   const [categoriaFilter, setCategoriaFilter] = useState('todos');
 
   const { data: documents = [], isLoading } = useQuery({
+    // La key coincide con la invalidación que pusimos en VacationsList
     queryKey: ['documents', estadoFilter, categoriaFilter],
     queryFn: async () => {
       let query = (supabase as any)
@@ -32,6 +36,9 @@ export default function DocumentsList() {
         .order('created_at', { ascending: false });
 
       if (estadoFilter !== 'todos') {
+        // Postgres es sensible a mayúsculas, pero asumimos que el filtro coincide con lo guardado
+        // Si tu DB tiene 'VALIDADO' y aquí filtras 'validado', el select podría ajustarse,
+        // pero por ahora mantenemos tu lógica de filtro original.
         query = query.eq('estado', estadoFilter);
       }
 
@@ -46,13 +53,16 @@ export default function DocumentsList() {
   });
 
   const getEstadoBadge = (estado: string) => {
+    // 3. MODIFICADO: Normalizamos a minúsculas para evitar errores si la DB devuelve "VALIDADO"
+    const s = estado?.toLowerCase() || 'pendiente';
+    
     const variants: Record<string, 'default' | 'destructive' | 'outline'> = {
       pendiente: 'outline',
       validado: 'default',
       rechazado: 'destructive',
     };
     return (
-      <Badge variant={variants[estado] || 'default'}>
+      <Badge variant={variants[s] || 'default'}>
         {estado.toUpperCase()}
       </Badge>
     );
@@ -141,6 +151,8 @@ export default function DocumentsList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas las categorías</SelectItem>
+                {/* 4. MODIFICADO: Agregamos Recursos Humanos para poder filtrar vacaciones */}
+                <SelectItem value="Recursos Humanos">Recursos Humanos</SelectItem>
                 <SelectItem value="contrato">Contrato</SelectItem>
                 <SelectItem value="identificacion">Identificación</SelectItem>
                 <SelectItem value="certificado">Certificado</SelectItem>
@@ -181,36 +193,62 @@ export default function DocumentsList() {
           searchable
           searchPlaceholder="Buscar documentos..."
           emptyMessage="No hay documentos disponibles."
+          // La navegación al hacer click en la fila se mantiene intacta
           onRowClick={(row) => navigate(`/documentos/${row.id}`)}
-          actions={(row) => (
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/documentos/${row.id}`);
-                }}
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Ver
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const { data } = (supabase as any).storage
-                    .from('documents')
-                    .getPublicUrl((row as any).file_path);
-                  window.open(data.publicUrl, '_blank');
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Descargar
-              </Button>
-            </div>
-          )}
+          actions={(row) => {
+            // 5. MODIFICADO: Lógica para detectar registros virtuales (sin archivo físico)
+            // 'application/link' es el mime_type que usamos en VacationsList
+            const isVirtual = (row as any).mime_type === 'application/link' || (row as any).file_path?.startsWith('/system/');
+
+            return (
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/documentos/${row.id}`);
+                  }}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Ver
+                </Button>
+
+                {/* 6. MODIFICADO: Botón Condicional */}
+                {isVirtual ? (
+                  // Caso A: Es Vacación -> Botón informativo (no descarga)
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 cursor-not-allowed hover:bg-transparent hover:text-gray-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast.info("Registro digital de sistema. Para ver detalles, pulsa 'Ver'.");
+                    }}
+                  >
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Registro Digital
+                  </Button>
+                ) : (
+                  // Caso B: Es Documento Real -> Botón Descargar original
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const { data } = (supabase as any).storage
+                        .from('documents')
+                        .getPublicUrl((row as any).file_path);
+                      window.open(data.publicUrl, '_blank');
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Descargar
+                  </Button>
+                )}
+              </div>
+            );
+          }}
         />
       )}
     </div>

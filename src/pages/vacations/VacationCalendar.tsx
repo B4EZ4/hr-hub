@@ -1,23 +1,91 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase-with-auth';
+import { Calendar as CalendarIcon, AlertCircle, User, CheckCircle2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 export default function VacationCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDateInfo, setSelectedDateInfo] = useState<{ date: Date; requests: any[] } | null>(null);
 
   const { data: holidays } = useQuery({
     queryKey: ['holidays', currentMonth.getFullYear()],
     queryFn: async () => {
-      const { data } = await supabase
+      const year = currentMonth.getFullYear();
+
+      // 1. Obtener festivos personalizados de tu base de datos
+      const { data: dbHolidays } = await supabase
         .from('holiday_calendar')
         .select('*')
-        .eq('year', currentMonth.getFullYear())
+        .eq('year', year)
         .order('holiday_date');
-      return data || [];
+
+      // ---------------------------------------------------------
+      // CÁLCULO DE SEMANA SANTA (Algoritmo estándar para fecha móvil)
+      // ---------------------------------------------------------
+      const getEasterDate = (y: number) => {
+        const a = y % 19;
+        const b = Math.floor(y / 100);
+        const c = y % 100;
+        const d = Math.floor(b / 4);
+        const e = b % 4;
+        const f = Math.floor((b + 8) / 25);
+        const g = Math.floor((b - f + 1) / 3);
+        const h = (19 * a + b - d - g + 15) % 30;
+        const i = Math.floor(c / 4);
+        const k = c % 4;
+        const l = (32 + 2 * e + 2 * i - h - k) % 7;
+        const m = Math.floor((a + 11 * h + 22 * l) / 451);
+        const month = Math.floor((h + l - 7 * m + 114) / 31) - 1; // 0-indexed month
+        const day = ((h + l - 7 * m + 114) % 31) + 1;
+        return new Date(y, month, day);
+      };
+
+      const easterSunday = getEasterDate(year);
+      
+      // Calculamos Jueves y Viernes Santo restando días al Domingo de Resurrección
+      const juevesSanto = new Date(easterSunday);
+      juevesSanto.setDate(easterSunday.getDate() - 3); // Jueves es -3 días
+      
+      const viernesSanto = new Date(easterSunday);
+      viernesSanto.setDate(easterSunday.getDate() - 2); // Viernes es -2 días
+
+      const formatoFecha = (d: Date) => d.toISOString().split('T')[0];
+
+      // ---------------------------------------------------------
+
+      // 2. Definir festivos fijos + Semana Santa calculada
+      const staticHolidays = [
+        { id: `static-1-${year}`, holiday_date: `${year}-01-01`, holiday_name: 'Año Nuevo (Intl)' },
+        { id: `static-2-${year}`, holiday_date: `${year}-02-05`, holiday_name: 'Día de la Constitución (MX)' },
+        { id: `static-3-${year}`, holiday_date: `${year}-03-21`, holiday_name: 'Natalicio de Benito Juárez (MX)' },
+        // Agregamos Semana Santa dinámica
+        { id: `static-ss-thu-${year}`, holiday_date: formatoFecha(juevesSanto), holiday_name: 'Jueves Santo' },
+        { id: `static-ss-fri-${year}`, holiday_date: formatoFecha(viernesSanto), holiday_name: 'Viernes Santo' },
+        
+        { id: `static-4-${year}`, holiday_date: `${year}-05-01`, holiday_name: 'Día del Trabajo (Intl)' },
+        { id: `static-5-${year}`, holiday_date: `${year}-09-16`, holiday_name: 'Día de la Independencia (MX)' },
+        { id: `static-6-${year}`, holiday_date: `${year}-11-02`, holiday_name: 'Día de Muertos (MX)' },
+        { id: `static-7-${year}`, holiday_date: `${year}-11-20`, holiday_name: 'Día de la Revolución (MX)' },
+        { id: `static-8-${year}`, holiday_date: `${year}-12-12`, holiday_name: 'Día de la Virgen de Guadalupe (MX)' },
+        { id: `static-9-${year}`, holiday_date: `${year}-12-25`, holiday_name: 'Navidad (Intl)' },
+      ];
+
+      // 3. Combinar ambos listados (DB + Estáticos)
+      const allHolidaysMap = new Map();
+      staticHolidays.forEach(h => allHolidaysMap.set(h.holiday_date, h));
+      
+      if (dbHolidays) {
+        dbHolidays.forEach((h: any) => allHolidaysMap.set(h.holiday_date, h));
+      }
+
+      const mergedHolidays = Array.from(allHolidaysMap.values()).sort((a: any, b: any) => 
+        new Date(a.holiday_date).getTime() - new Date(b.holiday_date).getTime()
+      );
+
+      return mergedHolidays;
     }
   });
 
@@ -27,18 +95,29 @@ export default function VacationCalendar() {
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-      const { data } = await supabase
+      const startStr = startOfMonth.toISOString().split('T')[0];
+      const endStr = endOfMonth.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
         .from('vacation_requests')
         .select(`
           id,
           start_date,
           end_date,
           status,
-          profiles:profile_id (full_name)
+          user_id,
+          profiles!fk_vacation_requests_profiles (
+            full_name
+          )
         `)
-        .in('status', ['aprobado', 'pendiente'])
-        .gte('start_date', startOfMonth.toISOString())
-        .lte('end_date', endOfMonth.toISOString());
+        .eq('status', 'approved') 
+        .lte('start_date', endStr)
+        .gte('end_date', startStr);
+
+      if (error) {
+        console.error("Error fetching vacations:", error);
+        return [];
+      }
 
       return data || [];
     }
@@ -75,9 +154,11 @@ export default function VacationCalendar() {
   };
 
   const isHoliday = (date: Date) => {
-    return holidays?.some(h => 
-      new Date(h.holiday_date).toDateString() === date.toDateString()
-    );
+    return holidays?.some((h: any) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      const localDate = new Date(date.getTime() - offset).toISOString().split('T')[0];
+      return h.holiday_date === localDate;
+    });
   };
 
   const isBlackout = (date: Date) => {
@@ -89,11 +170,16 @@ export default function VacationCalendar() {
   };
 
   const getVacationsOnDate = (date: Date) => {
-    return vacationRequests?.filter((req: any) => {
-      const start = new Date(req.start_date);
-      const end = new Date(req.end_date);
-      return date >= start && date <= end;
-    }) || [];
+    if (!vacationRequests) return [];
+    
+    const currentDayTime = new Date(date);
+    currentDayTime.setHours(12, 0, 0, 0);
+
+    return vacationRequests.filter((req: any) => {
+      const start = new Date(req.start_date + 'T00:00:00');
+      const end = new Date(req.end_date + 'T23:59:59');
+      return currentDayTime >= start && currentDayTime <= end;
+    });
   };
 
   const days = getDaysInMonth(currentMonth);
@@ -101,10 +187,20 @@ export default function VacationCalendar() {
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    setSelectedDateInfo(null);
   };
 
   const prevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    setSelectedDateInfo(null);
+  };
+
+  const handleDayClick = (day: Date, vacations: any[]) => {
+    if (vacations.length > 0) {
+      setSelectedDateInfo({ date: day, requests: vacations });
+    } else {
+      setSelectedDateInfo(null);
+    }
   };
 
   return (
@@ -151,15 +247,29 @@ export default function VacationCalendar() {
                 const holiday = isHoliday(day);
                 const blackout = isBlackout(day);
                 const vacations = getVacationsOnDate(day);
+                const hasVacations = vacations.length > 0;
+
+                let bgClass = '';
+                let borderClass = 'border';
+                
+                if (hasVacations) {
+                    bgClass = 'bg-green-50 hover:bg-green-100 cursor-pointer transition-colors';
+                    borderClass = 'border-green-200';
+                } else if (holiday) {
+                    bgClass = 'bg-red-50';
+                    borderClass = 'border-red-200';
+                } else if (blackout) {
+                    bgClass = 'bg-orange-50';
+                    borderClass = 'border-orange-200';
+                } else if (isWeekend) {
+                    bgClass = 'bg-muted/50';
+                }
 
                 return (
                   <div
                     key={index}
-                    className={`min-h-20 p-2 border rounded-lg ${
-                      isWeekend ? 'bg-muted/50' : ''
-                    } ${holiday ? 'bg-red-50 border-red-200' : ''} ${
-                      blackout ? 'bg-orange-50 border-orange-200' : ''
-                    }`}
+                    onClick={() => handleDayClick(day, vacations)}
+                    className={`min-h-20 p-2 rounded-lg ${bgClass} ${borderClass}`}
                   >
                     <div className="text-sm font-semibold mb-1">{day.getDate()}</div>
                     {holiday && (
@@ -167,14 +277,9 @@ export default function VacationCalendar() {
                         Festivo
                       </Badge>
                     )}
-                    {blackout && (
-                      <Badge variant="outline" className="text-[10px] w-full mb-1 bg-orange-100">
-                        Bloqueado
-                      </Badge>
-                    )}
-                    {vacations.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px] w-full">
-                        {vacations.length} persona{vacations.length > 1 ? 's' : ''}
+                    {hasVacations && (
+                      <Badge className="text-[10px] w-full bg-green-600 hover:bg-green-700 border-none text-white">
+                        {vacations.length} {vacations.length === 1 ? 'Aprobado' : 'Aprobados'}
                       </Badge>
                     )}
                   </div>
@@ -185,9 +290,40 @@ export default function VacationCalendar() {
         </Card>
 
         <div className="space-y-4">
+          
+          {selectedDateInfo && (
+            <Card className="border-green-200 bg-green-50/50 animate-in fade-in slide-in-from-top-4 duration-300">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 text-green-800">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {selectedDateInfo.date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {selectedDateInfo.requests.map((req: any) => (
+                    <div key={req.id} className="flex items-center gap-3 bg-white p-3 rounded-md border border-green-100 shadow-sm">
+                      <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">
+                            {req.profiles ? req.profiles.full_name : "Usuario"}
+                        </p>
+                        <p className="text-xs text-green-600 font-medium">
+                            Vacaciones Aprobadas
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Leyenda</CardTitle>
+              <CardTitle>Tipo de Día o Fecha</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center gap-2">
@@ -195,23 +331,19 @@ export default function VacationCalendar() {
                 <span className="text-sm">Día festivo oficial</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-orange-50 border-orange-200 border rounded" />
-                <span className="text-sm">Período bloqueado</span>
+                <div className="w-4 h-4 bg-green-50 border-green-200 border rounded" />
+                <span className="text-sm">Vacaciones Aprobadas</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-muted/50 border rounded" />
                 <span className="text-sm">Fin de semana</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">N</Badge>
-                <span className="text-sm">Vacaciones solicitadas</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Días Festivos {currentMonth.getFullYear()}</CardTitle>
+              <CardTitle>Días Festivos </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -221,7 +353,7 @@ export default function VacationCalendar() {
                     <div>
                       <p className="font-medium">{holiday.holiday_name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(holiday.holiday_date).toLocaleDateString('es-MX', {
+                        {new Date(holiday.holiday_date + 'T12:00:00').toLocaleDateString('es-MX', {
                           day: 'numeric',
                           month: 'long'
                         })}

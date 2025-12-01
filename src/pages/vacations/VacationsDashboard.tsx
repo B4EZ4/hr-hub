@@ -26,14 +26,15 @@ import { useToast } from "@/components/ui/use-toast";
 
 // IMPORTS DE TUS COMPONENTES
 import VacationRequest from "./VacationRequest";
-import VacationsList from "./VacationsList"; // <--- 1. IMPORTAR LA LISTA
+import VacationsList from "./VacationsList";
+import VacationCalendar from "./VacationCalendar";
 
 const VacationsDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
   // 2. ESTADO PARA CONTROLAR VISTAS ('dashboard' | 'form' | 'list')
-  const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list' | 'calendar'>('dashboard');
 
   // --- CONSULTA 1: Solicitudes Pendientes ---
   const { data: pendingCount = 0, isLoading: loadingPending } = useQuery({
@@ -145,8 +146,26 @@ const VacationsDashboard = () => {
       </div>
     );
   }
-
-  // --- VISTA 3: Dashboard Principal ---
+// --- VISTA 3: Calendario Global ---
+  if (currentView === 'calendar') {
+    return (
+   <div className={containerClasses}>
+        {/* Botón manual para volver, ya que VacationsList no tiene prop onBack */}
+        <div className="flex items-center gap-2 mb-4">
+          <Button 
+            variant="ghost" 
+            onClick={() => setCurrentView('dashboard')} 
+            className="pl-0 hover:pl-2 transition-all"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al Dashboard
+          </Button>
+        </div>
+        <VacationCalendar/>
+      </div>
+    );
+  } 
+  // --- VISTA 4: Dashboard Principal ---
   return (
     <div className={containerClasses}>
       {/* Header Section */}
@@ -159,7 +178,6 @@ const VacationsDashboard = () => {
             Sistema de solicitudes según Ley Federal del Trabajo (Vacaciones Dignas 2023)
           </p>
         </div>
-        
         {/* Botón Nueva Solicitud */}
         <Button
           onClick={() => setCurrentView('form')} // Cambia a vista formulario
@@ -247,7 +265,10 @@ const VacationsDashboard = () => {
 
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-purple-500/50 group"
-            onClick={() => navigate('/vacaciones/calendario')}
+            
+            // ANTES: onClick={() => navigate('/vacaciones/calendario')}
+            // AHORA:
+            onClick={() => setCurrentView('calendar')} 
           >
             <CardHeader className="pb-2">
               <Calendar className="h-5 w-5 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
@@ -255,27 +276,15 @@ const VacationsDashboard = () => {
               <CardDescription>Ver días festivos y ocupados</CardDescription>
             </CardHeader>
           </Card>
-
-          <Card
-            className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-green-500/50 group"
-            onClick={() => toast({ description: "Navegando al historial completo..." })}
-          >
-            <CardHeader className="pb-2">
-              <History className="h-5 w-5 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
-              <CardTitle className="text-lg">Historial Completo</CardTitle>
-              <CardDescription>Todas las solicitudes pasadas</CardDescription>
-            </CardHeader>
-          </Card>
-
           {/* Tarjeta 4: También lleva a la lista (igual que la tarjeta 1) */}
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-orange-500/50 group"
             onClick={() => setCurrentView('list')} // <-- CONEXIÓN AQUÍ
           >
             <CardHeader className="pb-2">
-              <AlertCircle className="h-5 w-5 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
-              <CardTitle className="text-lg">Revisar Pendientes</CardTitle>
-              <CardDescription>{pendingCount} solicitudes por revisar</CardDescription>
+               <History className="h-5 w-5 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+              <CardTitle className="text-lg">Historial Completo</CardTitle>
+              <CardDescription>{pendingCount} Todas las solicitudes pasadas</CardDescription>
             </CardHeader>
           </Card>
         </div>
