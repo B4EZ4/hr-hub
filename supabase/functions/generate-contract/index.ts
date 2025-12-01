@@ -6,7 +6,6 @@ const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-token',
 };
-
 // Configuración de la empresa (luego se puede mover a una tabla)
 const COMPANY_INFO = {
     name: 'EMPRESA DEMO S.A. DE C.V.',
