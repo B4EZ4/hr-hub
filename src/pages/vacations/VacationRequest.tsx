@@ -187,9 +187,9 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
       </div>
 
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Gestión de Vacaciones</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Solicitud de Vacaciones</h1>
         <p className="text-muted-foreground">
-          Generar solicitud y consultar balances de colaboradores.
+          Generar solicitud de vacaciones del Empleado.
         </p>
       </div>
 
