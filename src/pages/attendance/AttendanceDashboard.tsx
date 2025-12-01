@@ -19,6 +19,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AttendanceHistory } from "./AttendanceHistory";
 
 type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"] & {
   profiles?: {
@@ -127,7 +129,7 @@ export default function AttendanceDashboard() {
       const { data, error } = await (supabase as any)
         .from("vacation_requests")
         .select("id, user_id, start_date, end_date, status")
-        .in("status", ["aprobado", "pendiente"]);
+        .in("status", ["approved", "pending"]);
 
       if (error) {
         console.warn("vacation_requests table not found, skipping...");
@@ -233,272 +235,291 @@ export default function AttendanceDashboard() {
               Supervisa el ingreso diario del personal, detecta tardanzas y controla ausencias en tiempo real.
             </p>
           </div>
-
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Empleados activos</CardTitle>
-            <Users className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{employees.length}</div>
-            <p className="text-xs text-muted-foreground">con registro en el sistema</p>
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="today" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="today">Vista Diaria</TabsTrigger>
+          <TabsTrigger value="history">Historial</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cobertura hoy</CardTitle>
-            <UserCheck className="h-5 w-5 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{coverageRate}%</div>
-            <p className="text-xs text-muted-foreground">{todayRecords.length} registros de {employees.length}</p>
-          </CardContent>
-        </Card>
+        <TabsContent value="today" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Empleados activos</CardTitle>
+                <Users className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{employees.length}</div>
+                <p className="text-xs text-muted-foreground">con registro en el sistema</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cobertura hoy</CardTitle>
+                <UserCheck className="h-5 w-5 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{coverageRate}%</div>
+                <p className="text-xs text-muted-foreground">{todayRecords.length} registros de {employees.length}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tardanzas hoy</CardTitle>
+                <Clock8 className="h-5 w-5 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{lateToday.length}</div>
+                <p className="text-xs text-muted-foreground">{onTimeToday.length} ingresos puntuales</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ausencias</CardTitle>
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{employeesOnLeave.length}</div>
+                <p className="text-xs text-muted-foreground">con permisos o vacaciones activos</p>
+              </CardContent>
+            </Card>
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tardanzas hoy</CardTitle>
-            <Clock8 className="h-5 w-5 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{lateToday.length}</div>
-            <p className="text-xs text-muted-foreground">{onTimeToday.length} ingresos puntuales</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ausencias</CardTitle>
-            <AlertTriangle className="h-5 w-5 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{employeesOnLeave.length}</div>
-            <p className="text-xs text-muted-foreground">con permisos o vacaciones activos</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Registros de hoy</CardTitle>
-            <CardDescription>Detalle de entradas y salidas del {format(today, "dd 'de' MMMM")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {todayRecords.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aún no hay registros de asistencia para hoy.</p>
-            ) : (
-              <ScrollArea className="h-[420px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Empleado</TableHead>
-                      <TableHead>Horario</TableHead>
-                      <TableHead>Check-in</TableHead>
-                      <TableHead>Check-out</TableHead>
-                      <TableHead className="text-right">Estado</TableHead>
-                      <TableHead className="w-[80px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {todayRecords.map((record) => {
-                      const statusKey = record.status || "pendiente";
-                      const status = statusVariant[statusKey] || statusVariant.pendiente;
-                      const employee = employeesMap.get(record.user_id);
-                      const employeeName = (record as any).full_name || record.profiles?.full_name || employee?.full_name || "Empleado";
-                      const position = (record as any).position_title || record.profiles?.positions?.title;
-                      const area = (record as any).area_name || record.profiles?.areas?.name;
-
-                      // --- INTEGRACIÓN MÓDULOS ---
-                      const employeeAbsence = absences.find(a =>
-                        a.user_id === record.user_id &&
-                        a.status === 'aprobado' &&
-                        isWithinInterval(new Date(todayIso), { start: new Date(a.start_date), end: new Date(a.end_date) })
-                      );
-
-                      const employeeIncident = incidents.find((i: any) => i.reported_by === record.user_id);
-
-                      let displayStatus = status;
-                      let statusBadgeVariant = status.variant;
-
-                      if (employeeAbsence) {
-                        displayStatus = { label: "Vacaciones", variant: "default" };
-                        statusBadgeVariant = "secondary";
-                      }
-
-                      return (
-                        <TableRow key={record.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar>
-                                <AvatarImage src={(record as any).avatar_url || employee?.avatar_url} />
-                                <AvatarFallback>
-                                  {employeeName?.substring(0, 2).toUpperCase() || "EM"}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-medium">
-                                    {employeeName}
-                                  </p>
-                                  {employeeIncident && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger>
-                                          <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Incidente reportado: {(employeeIncident as any).title}</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {position || area || "Sin asignar"}
-                                </p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <p className="text-sm font-medium">
-                              {formatTime(record.scheduled_start)} - {formatTime(record.scheduled_end)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{getMinutesLate(record)} min tarde</p>
-                          </TableCell>
-                          <TableCell>{record.check_in ? format(new Date(record.check_in), "HH:mm") : "—"}</TableCell>
-                          <TableCell>{record.check_out ? format(new Date(record.check_out), "HH:mm") : "—"}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={statusBadgeVariant}>{displayStatus.label}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedRecord({
-                                  ...record,
-                                  full_name: employeeName,
-                                  avatar_url: (record as any).avatar_url || employee?.avatar_url,
-                                  area_name: area,
-                                  position_title: position,
-                                });
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
+              <CardHeader>
+                <CardTitle>Registros de hoy</CardTitle>
+                <CardDescription>Detalle de entradas y salidas del {format(today, "dd 'de' MMMM")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {todayRecords.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aún no hay registros de asistencia para hoy.</p>
+                ) : (
+                  <ScrollArea className="h-[420px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Empleado</TableHead>
+                          <TableHead>Horario</TableHead>
+                          <TableHead>Check-in</TableHead>
+                          <TableHead>Check-out</TableHead>
+                          <TableHead className="text-right">Estado</TableHead>
+                          <TableHead className="w-[80px]"></TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {todayRecords.map((record) => {
+                          const statusKey = record.status || "pendiente";
+                          const status = statusVariant[statusKey] || statusVariant.pendiente;
+                          const employee = employeesMap.get(record.user_id);
+                          const employeeName = (record as any).full_name || record.profiles?.full_name || employee?.full_name || "Empleado";
+                          const position = (record as any).position_title || record.profiles?.positions?.title;
+                          const area = (record as any).area_name || record.profiles?.areas?.name;
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen semanal</CardTitle>
-              <CardDescription>Comportamiento entre {format(weekStart, "dd MMM")} y {format(weekEnd, "dd MMM")}.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>Puntualidad</span>
-                  <span>{weeklySummary.onTime} registros</span>
-                </div>
-                <Progress value={(weeklySummary.onTime / Math.max(attendance.length, 1)) * 100} className="mt-2" />
-              </div>
-              <div>
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>Tardanzas</span>
-                  <span>{weeklySummary.late} registros</span>
-                </div>
-                <Progress value={(weeklySummary.late / Math.max(attendance.length, 1)) * 100} className="mt-2" />
-              </div>
-              <div>
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>Ausencias</span>
-                  <span>{weeklySummary.absent} registros</span>
-                </div>
-                <Progress value={(weeklySummary.absent / Math.max(attendance.length, 1)) * 100} className="mt-2" />
-              </div>
-            </CardContent>
-          </Card>
+                          // --- INTEGRACIÓN MÓDULOS ---
+                          const employeeAbsence = absences.find(a =>
+                            a.user_id === record.user_id &&
+                            a.status === 'approved' &&
+                            isWithinInterval(new Date(todayIso), { start: new Date(a.start_date), end: new Date(a.end_date) })
+                          );
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Ausencias programadas</CardTitle>
-              <CardDescription>Vacaciones y permisos recientes</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {absences.length === 0 && <p className="text-sm text-muted-foreground">No hay ausencias registradas.</p>}
-              {absences.slice(0, 5).map((absence) => {
-                const employee = employeesMap.get(absence.user_id);
-                return (
-                  <div key={absence.id} className="rounded-lg border p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium">{employee?.full_name || "Empleado"}</p>
-                      <Badge variant="outline">{absence.status}</Badge>
+                          const employeeIncident = incidents.find((i: any) => i.reported_by === record.user_id);
+
+                          let displayStatus = status;
+                          let statusBadgeVariant = status.variant;
+
+                          if (employeeAbsence) {
+                            displayStatus = { label: "Vacaciones", variant: "default" };
+                            statusBadgeVariant = "secondary";
+                          }
+
+                          return (
+                            <TableRow key={record.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <Avatar>
+                                    <AvatarImage src={(record as any).avatar_url || employee?.avatar_url} />
+                                    <AvatarFallback>
+                                      {employeeName?.substring(0, 2).toUpperCase() || "EM"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium">
+                                        {employeeName}
+                                      </p>
+                                      {employeeIncident && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger>
+                                              <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Incidente reportado: {(employeeIncident as any).title}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      {position || area || "Sin asignar"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <p className="text-sm font-medium">
+                                  {formatTime(record.scheduled_start)} - {formatTime(record.scheduled_end)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">{getMinutesLate(record)} min tarde</p>
+                              </TableCell>
+                              <TableCell>{record.check_in ? format(new Date(record.check_in), "HH:mm") : "—"}</TableCell>
+                              <TableCell>{record.check_out ? format(new Date(record.check_out), "HH:mm") : "—"}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={statusBadgeVariant}>{displayStatus.label}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSelectedRecord({
+                                      ...record,
+                                      full_name: employeeName,
+                                      avatar_url: (record as any).avatar_url || employee?.avatar_url,
+                                      area_name: area,
+                                      position_title: position,
+                                    });
+                                    setEditDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6 col-span-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Resumen semanal</CardTitle>
+                  <CardDescription>Comportamiento entre {format(weekStart, "dd MMM")} y {format(weekEnd, "dd MMM")}.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      <span>Puntualidad</span>
+                      <span>{weeklySummary.onTime} registros</span>
                     </div>
-                    <p className="text-muted-foreground">
-                      {formatDate(absence.start_date)} - {formatDate(absence.end_date)}
-                    </p>
+                    <Progress value={(weeklySummary.onTime / Math.max(attendance.length, 1)) * 100} className="mt-2" />
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </div>
-      </div >
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Monitoreo por departamento</CardTitle>
-          <CardDescription>Estado de cobertura diaria por equipo</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {Object.keys(departmentSummary).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin departamentos registrados.</p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(departmentSummary).map(([department, data]) => {
-                const coverage = data.total > 0 ? Math.round((data.present * 100) / data.total) : 0;
-                return (
-                  <div key={department} className="rounded-lg border p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{department}</p>
-                      <Badge variant={coverage >= 80 ? "default" : coverage >= 50 ? "secondary" : "destructive"}>
-                        {coverage}%
-                      </Badge>
+                  <div>
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      <span>Tardanzas</span>
+                      <span>{weeklySummary.late} registros</span>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {data.present} presentes de {data.total}
-                    </p>
-                    <Separator className="my-3" />
-                    <Progress value={coverage} />
+                    <Progress value={(weeklySummary.late / Math.max(attendance.length, 1)) * 100} className="mt-2" />
                   </div>
-                );
-              })}
+                  <div>
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      <span>Ausencias</span>
+                      <span>{weeklySummary.absent} registros</span>
+                    </div>
+                    <Progress value={(weeklySummary.absent / Math.max(attendance.length, 1)) * 100} className="mt-2" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ausencias programadas</CardTitle>
+                  <CardDescription>Vacaciones y permisos recientes</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {absences.length === 0 && <p className="text-sm text-muted-foreground">No hay ausencias registradas.</p>}
+                  {absences.slice(0, 5).map((absence) => {
+                    const employee = employeesMap.get(absence.user_id);
+                    return (
+                      <div key={absence.id} className="rounded-lg border p-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{employee?.full_name || "Empleado"}</p>
+                          <Badge variant="outline">{absence.status}</Badge>
+                        </div>
+                        <p className="text-muted-foreground">
+                          {formatDate(absence.start_date)} - {formatDate(absence.end_date)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Monitoreo por departamento</CardTitle>
+              <CardDescription>Estado de cobertura diaria por equipo</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {Object.keys(departmentSummary).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin departamentos registrados.</p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(departmentSummary).map(([department, data]) => {
+                    const coverage = data.total > 0 ? Math.round((data.present * 100) / data.total) : 0;
+                    return (
+                      <div key={department} className="rounded-lg border p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold">{department}</p>
+                          <Badge variant={coverage >= 80 ? "default" : coverage >= 50 ? "secondary" : "destructive"}>
+                            {coverage}%
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {data.present} presentes de {data.total}
+                        </p>
+                        <Separator className="my-3" />
+                        <Progress value={coverage} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Historial de Asistencia</CardTitle>
+              <CardDescription>
+                Consulta y filtra los registros de asistencia pasados.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AttendanceHistory />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <EditAttendanceDialog
         record={selectedRecord}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
       />
-    </div >
+    </div>
   );
 }
