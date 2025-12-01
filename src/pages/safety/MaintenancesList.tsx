@@ -60,9 +60,13 @@ export default function MaintenancesList() {
   const startMaintenanceMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any)
-        .rpc('start_maintenance', {
-          maintenance_id: id
-        });
+        .from('inventory_maintenance')
+        .update({
+          status: 'en_proceso',
+          start_date: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -77,11 +81,28 @@ export default function MaintenancesList() {
   // Mutación para completar
   const completeMaintenanceMutation = useMutation({
     mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
+      // Obtener el mantenimiento actual para calcular duración
+      const { data: currentMaintenance } = await (supabase as any)
+        .from('inventory_maintenance')
+        .select('start_date')
+        .eq('id', id)
+        .single();
+
+      const actualDuration = currentMaintenance?.start_date
+        ? Math.ceil((new Date().getTime() - new Date(currentMaintenance.start_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 1;
+
       const { error } = await (supabase as any)
-        .rpc('complete_maintenance', {
-          maintenance_id: id,
-          completion_notes: notes
-        });
+        .from('inventory_maintenance')
+        .update({
+          status: 'completado',
+          completion_notes: notes,
+          completed_date: new Date().toISOString(),
+          end_date: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          actual_duration: actualDuration
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -99,10 +120,14 @@ export default function MaintenancesList() {
   const cancelMaintenanceMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { error } = await (supabase as any)
-        .rpc('cancel_maintenance', {
-          maintenance_id: id,
-          cancellation_reason: reason
-        });
+        .from('inventory_maintenance')
+        .update({
+          status: 'cancelado',
+          cancellation_reason: reason,
+          updated_at: new Date().toISOString(),
+          end_date: new Date().toISOString()
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

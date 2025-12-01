@@ -140,7 +140,13 @@ export default function MaintenanceForm() {
   const startMaintenanceMutation = useMutation({
     mutationFn: async () => {
       const { error } = await (supabase as any)
-        .rpc('start_maintenance', { maintenance_id: id });
+        .from('inventory_maintenance')
+        .update({
+          status: 'en_proceso',
+          start_date: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -156,11 +162,28 @@ export default function MaintenanceForm() {
   // Función para completar mantenimiento
   const completeMaintenanceMutation = useMutation({
     mutationFn: async (notes: string) => {
+      // Obtener el mantenimiento actual para calcular duración
+      const { data: currentMaintenance } = await (supabase as any)
+        .from('inventory_maintenance')
+        .select('start_date')
+        .eq('id', id)
+        .single();
+
+      const actualDuration = currentMaintenance?.start_date
+        ? Math.ceil((new Date().getTime() - new Date(currentMaintenance.start_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 1;
+
       const { error } = await (supabase as any)
-        .rpc('complete_maintenance', {
-          maintenance_id: id,
-          completion_notes: notes
-        });
+        .from('inventory_maintenance')
+        .update({
+          status: 'completado',
+          completion_notes: notes,
+          completed_date: new Date().toISOString(),
+          end_date: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          actual_duration: actualDuration
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -180,10 +203,14 @@ export default function MaintenanceForm() {
   const cancelMaintenanceMutation = useMutation({
     mutationFn: async (reason: string) => {
       const { error } = await (supabase as any)
-        .rpc('cancel_maintenance', {
-          maintenance_id: id,
-          cancellation_reason: reason
-        });
+        .from('inventory_maintenance')
+        .update({
+          status: 'cancelado',
+          cancellation_reason: reason,
+          updated_at: new Date().toISOString(),
+          end_date: new Date().toISOString()
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -244,6 +271,7 @@ export default function MaintenanceForm() {
         cost: data.cost ? parseFloat(data.cost) : null,
         performed_by: profile.user_id,
         status: maintenanceStatus,
+        updated_at: new Date().toISOString(),
       };
 
       if (isEditing) {
@@ -266,6 +294,7 @@ export default function MaintenanceForm() {
               movement_type: 'salida',
               quantity: supply.quantity_used,
               observations: `Usado en mantenimiento de ${selectedItem?.name || 'equipo'}`,
+              created_at: new Date().toISOString(),
             });
 
             const { data: currentItem } = await supabase
@@ -277,7 +306,10 @@ export default function MaintenanceForm() {
             if (currentItem) {
               await supabase
                 .from('inventory_items')
-                .update({ stock_quantity: Math.max(0, currentItem.stock_quantity - supply.quantity_used) })
+                .update({
+                  stock_quantity: Math.max(0, currentItem.stock_quantity - supply.quantity_used),
+                  updated_at: new Date().toISOString()
+                })
                 .eq('id', supply.supply_id);
             }
           }
