@@ -91,11 +91,7 @@ export default function InventoryList() {
       header: 'Mín. Stock',
       accessorKey: 'min_stock',
     },
-    {
-      header: 'Precio Unit.',
-      accessorKey: 'unit_price',
-      cell: (value: number) => value ? `${value.toFixed(2)} €` : '-',
-    },
+
     {
       header: 'Ubicación',
       accessorKey: 'location',
@@ -114,7 +110,7 @@ export default function InventoryList() {
   return (
     <div className="space-y-6">
       <StockCriticalPanel />
-      
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
