@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Wrench, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Wrench, Plus, Trash2, Play, CheckCircle, XCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { MaintenanceActionDialog } from '@/components/maintenance/MaintenanceActionDialog';
 
 const supplyUsedSchema = z.object({
   supply_id: z.string().min(1, 'Seleccione un insumo'),
@@ -25,6 +27,8 @@ const formSchema = z.object({
   item_id: z.string().min(1, 'Selecciona un ítem'),
   maintenance_type: z.string().min(1, 'Selecciona el tipo'),
   scheduled_date: z.string().optional(),
+  start_date: z.string().optional(),
+  estimated_duration: z.number().min(1, 'La duración estimada es requerida').default(1),
   location: z.string().min(1, 'La ubicación es requerida'),
   description: z.string().min(10, 'Describe el trabajo a realizar (mínimo 10 caracteres)'),
   work_performed: z.string().optional(),
@@ -42,7 +46,12 @@ export default function MaintenanceForm() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isEditing = !!id;
-  const [suppliesUsed, setSuppliesUsed] = useState<Array<{supply_id: string; supply_name: string; quantity_used: number}>>([]);
+  const [suppliesUsed, setSuppliesUsed] = useState<Array<{ supply_id: string; supply_name: string; quantity_used: number }>>([]);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<string>('pendiente');
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    type: 'complete' | 'cancel' | null;
+  }>({ open: false, type: null });
 
   const { data: maintenance } = useQuery({
     queryKey: ['maintenance', id],
@@ -95,6 +104,8 @@ export default function MaintenanceForm() {
       item_id: '',
       maintenance_type: 'preventivo',
       scheduled_date: new Date().toISOString().split('T')[0],
+      start_date: new Date().toISOString().split('T')[0],
+      estimated_duration: 1,
       location: '',
       description: '',
       work_performed: '',
@@ -111,6 +122,8 @@ export default function MaintenanceForm() {
         item_id: maintenance.item_id,
         maintenance_type: maintenance.maintenance_type,
         scheduled_date: maintenance.scheduled_date || '',
+        start_date: maintenance.start_date?.split('T')[0] || '',
+        estimated_duration: maintenance.estimated_duration || 1,
         location: maintenance.item?.location || '',
         description: maintenance.description || '',
         work_performed: '',
@@ -119,12 +132,75 @@ export default function MaintenanceForm() {
         observations: maintenance.observations || '',
         cost: maintenance.cost?.toString() || '',
       });
+      setMaintenanceStatus(maintenance.status);
     }
   }, [maintenance, form]);
 
+  // Función para iniciar mantenimiento
+  const startMaintenanceMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any)
+        .rpc('start_maintenance', { maintenance_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
+      setMaintenanceStatus('en_proceso');
+      toast.success('Mantenimiento iniciado');
+    },
+    onError: (error: any) => {
+      toast.error('Error al iniciar mantenimiento: ' + error.message);
+    },
+  });
+
+  // Función para completar mantenimiento
+  const completeMaintenanceMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      const { error } = await (supabase as any)
+        .rpc('complete_maintenance', {
+          maintenance_id: id,
+          completion_notes: notes
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-maintenance'] });
+      setMaintenanceStatus('completado');
+      toast.success('Mantenimiento completado');
+      setActionDialog({ open: false, type: null });
+    },
+    onError: (error: any) => {
+      toast.error('Error al completar mantenimiento: ' + error.message);
+      setActionDialog({ open: false, type: null });
+    },
+  });
+
+  // Función para cancelar mantenimiento
+  const cancelMaintenanceMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const { error } = await (supabase as any)
+        .rpc('cancel_maintenance', {
+          maintenance_id: id,
+          cancellation_reason: reason
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-maintenance'] });
+      setMaintenanceStatus('cancelado');
+      toast.success('Mantenimiento cancelado');
+      setActionDialog({ open: false, type: null });
+    },
+    onError: (error: any) => {
+      toast.error('Error al cancelar mantenimiento: ' + error.message);
+      setActionDialog({ open: false, type: null });
+    },
+  });
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // Get current user's profile user_id
       const { data: profile } = await (supabase as any)
         .from('profiles')
         .select('user_id')
@@ -135,17 +211,16 @@ export default function MaintenanceForm() {
         throw new Error('No se encontró el perfil del usuario');
       }
 
-      // Construir observaciones con formato detallado
       let fullObservations = '';
-      
+
       if (data.work_performed) {
         fullObservations += `TRABAJO REALIZADO:\n${data.work_performed}\n\n`;
       }
-      
+
       if (data.pending_work) {
         fullObservations += `TRABAJO PENDIENTE:\n${data.pending_work}\n\n`;
       }
-      
+
       if (suppliesUsed.length > 0) {
         fullObservations += `INSUMOS UTILIZADOS:\n`;
         suppliesUsed.forEach(supply => {
@@ -153,7 +228,7 @@ export default function MaintenanceForm() {
         });
         fullObservations += '\n';
       }
-      
+
       if (data.observations) {
         fullObservations += `OBSERVACIONES ADICIONALES:\n${data.observations}`;
       }
@@ -162,11 +237,13 @@ export default function MaintenanceForm() {
         item_id: data.item_id,
         maintenance_type: data.maintenance_type,
         scheduled_date: data.scheduled_date || null,
+        start_date: data.start_date || null,
+        estimated_duration: data.estimated_duration || null,
         description: `UBICACIÓN: ${data.location}\n\n${data.description}`,
         observations: fullObservations.trim() || null,
         cost: data.cost ? parseFloat(data.cost) : null,
         performed_by: profile.user_id,
-        status: 'pendiente',
+        status: maintenanceStatus,
       };
 
       if (isEditing) {
@@ -181,11 +258,9 @@ export default function MaintenanceForm() {
           .insert(payload);
         if (error) throw error;
 
-        // Registrar uso de insumos
         if (suppliesUsed.length > 0) {
           const selectedItem = items.find((i: any) => i.id === data.item_id);
           for (const supply of suppliesUsed) {
-            // Crear movimiento
             await supabase.from('inventory_movements').insert({
               item_id: supply.supply_id,
               movement_type: 'salida',
@@ -193,7 +268,6 @@ export default function MaintenanceForm() {
               observations: `Usado en mantenimiento de ${selectedItem?.name || 'equipo'}`,
             });
 
-            // Actualizar stock
             const { data: currentItem } = await supabase
               .from('inventory_items')
               .select('stock_quantity')
@@ -256,8 +330,38 @@ export default function MaintenanceForm() {
     setSuppliesUsed(updated);
   };
 
+  // Función para obtener el color del badge según el estado
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pendiente': return <Badge className="bg-yellow-500">Pendiente</Badge>;
+      case 'en_proceso': return <Badge className="bg-blue-500">En Proceso</Badge>;
+      case 'completado': return <Badge className="bg-green-500">Completado</Badge>;
+      case 'cancelado': return <Badge variant="outline" className="text-red-500 border-red-500">Cancelado</Badge>;
+      default: return <Badge>{status}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {isEditing && (
+        <MaintenanceActionDialog
+          open={actionDialog.open}
+          onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}
+          actionType={actionDialog.type!}
+          onConfirm={(notes) => {
+            if (actionDialog.type === 'complete') {
+              completeMaintenanceMutation.mutate(notes);
+            } else if (actionDialog.type === 'cancel') {
+              cancelMaintenanceMutation.mutate(notes);
+            }
+          }}
+          isLoading={
+            completeMaintenanceMutation.isPending ||
+            cancelMaintenanceMutation.isPending
+          }
+        />
+      )}
+
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/seguridad-higiene/mantenimientos')}>
           <ArrowLeft className="h-4 w-4" />
@@ -276,6 +380,14 @@ export default function MaintenanceForm() {
       <Card>
         <CardHeader>
           <CardTitle>Datos del Mantenimiento</CardTitle>
+          {isEditing && (
+            <div className="mt-2">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Estado actual:</span>
+                {getStatusBadge(maintenanceStatus)}
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -287,7 +399,11 @@ export default function MaintenanceForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Ítem / Equipo Intervenido</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona un ítem" />
@@ -312,7 +428,11 @@ export default function MaintenanceForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo de Mantenimiento</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona el tipo" />
@@ -338,7 +458,49 @@ export default function MaintenanceForm() {
                     <FormItem>
                       <FormLabel>Fecha Programada</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input
+                          type="date"
+                          {...field}
+                          disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de Inicio</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="estimated_duration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duración Estimada (días)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="1"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -352,7 +514,11 @@ export default function MaintenanceForm() {
                     <FormItem>
                       <FormLabel>Ubicación del Mantenimiento</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ej: Taller, Planta, Sector A, etc." {...field} />
+                        <Input
+                          placeholder="Ej: Taller, Planta, Sector A, etc."
+                          {...field}
+                          disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -366,7 +532,13 @@ export default function MaintenanceForm() {
                     <FormItem>
                       <FormLabel>Costo / Gasto Asociado (opcional)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -381,7 +553,12 @@ export default function MaintenanceForm() {
                   <FormItem>
                     <FormLabel>Descripción del Trabajo a Realizar</FormLabel>
                     <FormControl>
-                      <Textarea rows={4} placeholder="Detalla el trabajo de mantenimiento programado..." {...field} />
+                      <Textarea
+                        rows={4}
+                        placeholder="Detalla el trabajo de mantenimiento programado..."
+                        {...field}
+                        disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -422,7 +599,13 @@ export default function MaintenanceForm() {
                     <h3 className="font-semibold">Insumos/Consumibles Utilizados</h3>
                     <p className="text-sm text-muted-foreground">Registra los materiales usados en el mantenimiento</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addSupply}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addSupply}
+                    disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Agregar Insumo
                   </Button>
@@ -438,6 +621,7 @@ export default function MaintenanceForm() {
                             <Select
                               value={supply.supply_id}
                               onValueChange={(value) => updateSupply(index, 'supply_id', value)}
+                              disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleccione un insumo" />
@@ -459,10 +643,17 @@ export default function MaintenanceForm() {
                               min="0.01"
                               value={supply.quantity_used}
                               onChange={(e) => updateSupply(index, 'quantity_used', parseFloat(e.target.value) || 1)}
+                              disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
                             />
                           </div>
                           <div className="flex items-end">
-                            <Button type="button" variant="ghost" size="icon" onClick={() => removeSupply(index)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeSupply(index)}
+                              disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -480,20 +671,69 @@ export default function MaintenanceForm() {
                   <FormItem>
                     <FormLabel>Observaciones Adicionales</FormLabel>
                     <FormControl>
-                      <Textarea rows={3} placeholder="Cualquier observación adicional relevante..." {...field} />
+                      <Textarea
+                        rows={3}
+                        placeholder="Cualquier observación adicional relevante..."
+                        {...field}
+                        disabled={maintenanceStatus === 'completado' || maintenanceStatus === 'cancelado'}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* Botones para cambiar estado si estamos editando */}
+              {isEditing && (
+                <div className="flex gap-2">
+                  {maintenanceStatus === 'pendiente' && (
+                    <Button
+                      type="button"
+                      onClick={() => startMaintenanceMutation.mutate()}
+                      disabled={startMaintenanceMutation.isPending}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Iniciar Mantenimiento
+                    </Button>
+                  )}
+                  {maintenanceStatus === 'en_proceso' && (
+                    <Button
+                      type="button"
+                      onClick={() => setActionDialog({ open: true, type: 'complete' })}
+                      disabled={completeMaintenanceMutation.isPending}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Terminar Mantenimiento
+                    </Button>
+                  )}
+                  {(maintenanceStatus === 'pendiente' || maintenanceStatus === 'en_proceso') && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setActionDialog({ open: true, type: 'cancel' })}
+                      disabled={cancelMaintenanceMutation.isPending}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancelar Mantenimiento
+                    </Button>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={() => navigate('/seguridad-higiene/mantenimientos')}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={mutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={
+                    mutation.isPending ||
+                    maintenanceStatus === 'completado' ||
+                    maintenanceStatus === 'cancelado'
+                  }
+                >
                   <Save className="mr-2 h-4 w-4" />
-                  {mutation.isPending ? 'Guardando...' : 'Registrar Mantenimiento'}
+                  {mutation.isPending ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Registrar Mantenimiento')}
                 </Button>
               </div>
             </form>
