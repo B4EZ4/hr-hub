@@ -5,48 +5,46 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Calendar, AlertTriangle, CheckCircle, User, Briefcase, Clock, ArrowLeft } from 'lucide-react';
+import { Search, Calendar, AlertTriangle, CheckCircle, User, Briefcase, Clock, ArrowLeft, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EmployeeVacationSearch() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Guardamos el ID de la tabla 'public.users'
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // ------------------------------------------------------------------
-  // 1. QUERY DE BÚSQUEDA (AHORA APUNTANDO A PUBLIC.USERS)
+  // 1. QUERY DE BÚSQUEDA (MODO SEGURO: SOLO TABLA USERS)
   // ------------------------------------------------------------------
   const { data: employees, isLoading: searchLoading } = useQuery({
     queryKey: ['employees-search', searchTerm],
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
 
-      console.log("🔍 Buscando en tabla USERS:", searchTerm);
+      console.log("🔍 Buscando en tabla PUBLIC.USERS:", searchTerm);
 
-      // CAMBIO IMPORTANTE: Buscamos en 'users', no en 'profiles'
+      // CAMBIO CLAVE: Quitamos la dependencia de 'profiles' y 'status' en la búsqueda.
+      // Buscamos puramente en la tabla que nos mostraste en la captura.
       const { data, error } = await (supabase as any)
         .from('users') 
-        .select('id, full_name, email, department, position, status, created_at')
+        .select('id, full_name, email, username') // Solo pedimos lo que seguro existe
         .ilike('full_name', `%${searchTerm}%`)
-        .eq('status', 'activo') // Aquí sí podemos filtrar porque tu schema dice que el default es 'activo'
         .limit(10);
 
       if (error) {
-        console.error("❌ Error buscando en users:", error);
+        console.error("❌ Error conectando a users:", error);
         return [];
       }
       
-      console.log("✅ Usuarios encontrados:", data);
+      console.log("✅ Encontrados en users:", data);
       return data || [];
     },
     enabled: searchTerm.length >= 2
   });
 
   // ------------------------------------------------------------------
-  // 2. QUERY DE DETALLES
+  // 2. QUERY DE DETALLES (ESTA SE EJECUTA AL SELECCIONAR)
   // ------------------------------------------------------------------
   const { data: employeeDetail, isLoading: detailLoading } = useQuery({
     queryKey: ['employee-vacation-detail', selectedUserId],
@@ -59,7 +57,7 @@ export default function EmployeeVacationSearch() {
 
       // --- FUNCIONES INTERNAS ---
 
-      // A. Usuario (Datos Maestros) - Tabla public.users
+      // A. Usuario (Base)
       const fetchUser = async () => {
         const { data, error } = await (supabase as any)
           .from('users')
@@ -70,20 +68,19 @@ export default function EmployeeVacationSearch() {
         return data;
       };
 
-      // B. Perfil (Solo para intentar obtener fecha de contratación real)
-      // Si no existe perfil, no fallaremos, usaremos datos de usuario.
+      // B. Perfil (Datos extra)
       const fetchProfile = async () => {
         try {
           const { data } = await (supabase as any)
             .from('profiles')
-            .select('department','position','hire_date, employee_number')
-            .eq('user_id', selectedUserId) // user_id en profiles apunta a id en users
+            .select('department, position, hire_date, employee_number')
+            .eq('user_id', selectedUserId)
             .maybeSingle();
           return data;
         } catch { return null; }
       };
 
-      // C. Balance (vacation_balances)
+      // C. Balance
       const fetchBalance = async () => {
         const { data } = await (supabase as any)
           .from('vacation_balances')
@@ -132,7 +129,6 @@ export default function EmployeeVacationSearch() {
         } catch { return []; }
       };
 
-      // --- EJECUCIÓN PARALELA ---
       const [user, profile, balance, contract, attendance, incidents] = await Promise.all([
         fetchUser(),
         fetchProfile(),
@@ -144,15 +140,11 @@ export default function EmployeeVacationSearch() {
 
       if (!user) throw new Error("Usuario no encontrado");
 
-      // --- LÓGICA DE NEGOCIO ---
-
-      // 1. Determinar fecha de inicio para antigüedad
-      // Prioridad: profile.hire_date -> user.created_at -> Hoy
+      // --- CÁLCULOS ---
       const startDateStr = profile?.hire_date || user.created_at || new Date().toISOString();
       const hireDate = new Date(startDateStr);
       const yearsOfService = Math.max(0, Math.floor((new Date().getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 365)));
 
-      // 2. Cálculo legal (Fallback)
       let daysEarned = 12; 
       if (yearsOfService >= 1) {
           if (yearsOfService >= 1 && yearsOfService <= 5) {
@@ -162,7 +154,6 @@ export default function EmployeeVacationSearch() {
           }
       }
 
-      // 3. Balance Final
       const finalBalance = balance ? {
           total_days: balance.total_days,
           used_days: balance.used_days,
@@ -173,26 +164,23 @@ export default function EmployeeVacationSearch() {
           available_days: daysEarned
       };
 
-      // 4. Métricas
       const totalDaysRecorded = attendance.length;
       const presentDays = attendance.filter((a: any) => a.status === 'presente' || a.status === 'retardo').length;
       const attendancePercentage = totalDaysRecorded > 0 ? (presentDays / totalDaysRecorded) * 100 : 100;
       const totalMinutesLate = attendance.reduce((acc: number, curr: any) => acc + (curr.minutes_late || 0), 0);
 
-      // Mapeamos datos para la vista
       return {
         fullName: user.full_name,
-        employeeNumber: profile?.employee_number || 'S/N', // Este dato suele estar en profiles
+        // Si no hay perfil, mostramos el username o 'S/N'
+        employeeNumber: profile?.employee_number || user.id || 'S/N',
         email: user.email,
-        department: user.department || 'General',
-        position: user.position || 'General',
+        department: profile?.department || user.department || 'General',
+        position: profile?.position || user.position || 'Colaborador',
         hireDate: hireDate,
-        
         balance: finalBalance,
         yearsOfService,
         salary: contract?.salary || 0,
         contractType: contract?.type || 'No def.',
-        
         attendancePercentage,
         minutesLate: totalMinutesLate,
         hasAttendanceAlert: attendancePercentage < 85 && totalDaysRecorded > 0,
@@ -223,72 +211,56 @@ export default function EmployeeVacationSearch() {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Escribe el nombre del empleado..."
+              placeholder="Buscar por nombre (ej: Emmanuel)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-11 text-base"
             />
           </div>
 
-          {searchLoading && <p className="text-sm text-gray-500 mt-4 animate-pulse">Buscando en tabla usuarios...</p>}
+          {searchLoading && <p className="text-sm text-gray-500 mt-4 animate-pulse">Consultando base de datos...</p>}
 
+          {/* LISTA DE RESULTADOS (Simplificada para asegurar visualización) */}
           {employees && employees.length > 0 && !selectedUserId && (
             <div className="mt-4 space-y-2 border rounded-md p-2 bg-gray-50/50">
-              {employees.map((emp: any) => {
-                // LÓGICA PARA EXTRAER DATOS DEL JOIN (Aquí se leen departamento y puesto)
-                let profileData = null;
-                if (Array.isArray(emp.profiles) && emp.profiles.length > 0) {
-                    profileData = emp.profiles[0]; // Es un array, tomamos el primero
-                } else if (emp.profiles && typeof emp.profiles === 'object') {
-                    profileData = emp.profiles;    // Es un objeto directo
-                }
-                const dept = profileData?.department || ' ';
-                const pos = profileData?.position || ' ';
-                const empNum = profileData?.position_id || ' ';
-
-                return (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between p-3 bg-white border rounded-md hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer shadow-sm group"
-                    onClick={() => {
-                        setSelectedUserId(emp.id);
-                        setSearchTerm(''); 
-                    }}
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Icono de usuario */}
-                      <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600">
-                          <User className="h-5 w-5" />
-                      </div>
-                      <div>
-                        {/* Nombre y Badge de estado */}
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900">{emp.full_name}</span>
-                          <Badge variant={emp.status === 'activo' ? 'secondary' : 'outline'} className="text-xs font-normal">
-                              {emp.status || 'Activo'}
-                          </Badge>
-                          {empNum && <span className="text-xs text-gray-400 font-mono">#{empNum}</span>}
-                        </div>
-                        
-                        {/* ▼ AQUÍ SE MUESTRAN PUESTO Y DEPARTAMENTO ▼ */}
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                          <Briefcase className="h-3 w-3" />
-                          {pos} • {dept}
-                        </p>
-                      </div>
+              {employees.map((emp: any) => (
+                <div
+                  key={emp.id}
+                  className="flex items-center justify-between p-3 bg-white border rounded-md hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer shadow-sm group"
+                  onClick={() => {
+                      setSelectedUserId(emp.id);
+                      setSearchTerm(''); 
+                  }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600">
+                        <User className="h-5 w-5" />
                     </div>
-                    <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700">
-                      Seleccionar →
-                    </Button>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900">{emp.full_name}</span>
+                      </div>
+                      
+                      {/* Mostramos el email ya que viene directo de users */}
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        {emp.email}
+                      </p>
+                    </div>
                   </div>
-                );
-              })}
+                  <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700">
+                    Seleccionar →
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
 
           {searchTerm.length >= 2 && employees?.length === 0 && !searchLoading && (
             <div className="mt-4 p-4 text-center border-2 border-dashed rounded-lg bg-gray-50">
-                <p className="text-gray-500">No se encontraron empleados en la tabla 'users'.</p>
+                <p className="text-gray-500">
+                    No se encontró a "{searchTerm}" en la tabla <strong>users</strong>.
+                </p>
             </div>
           )}
         </CardContent>
@@ -376,7 +348,6 @@ export default function EmployeeVacationSearch() {
                       <AlertTriangle className="h-4 w-4 text-red-600" />
                       <AlertDescription className="text-red-800">
                         <strong>Alerta de Asistencia:</strong> Asistencia {employeeDetail.attendancePercentage.toFixed(1)}%. 
-                        Retardos: {employeeDetail.minutesLate} min.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -396,30 +367,7 @@ export default function EmployeeVacationSearch() {
 
           {/* Acciones */}
           <div className="space-y-6">
-              <Card className="shadow-md border-gray-200">
-                <CardHeader className="bg-gray-50/50 border-b pb-4">
-                  <CardTitle className="text-base">Acciones Rápidas</CardTitle>
-                </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                  
-                  <Button
-                    className={`w-full h-12 text-base shadow-lg transition-all ${employeeDetail.balance.available_days > 0 ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-200' : 'bg-gray-300 cursor-not-allowed'}`}
-                    disabled={employeeDetail.balance.available_days <= 0}
-                    onClick={() => navigate(`/vacations/VacationsRequest.tsx`)}
-                  >
-                    <Calendar className="mr-2 h-5 w-5" />
-                    Crear Solicitud
-                  </Button>
-
-                  <Button 
-                    variant="outline" 
-                    className="w-full h-12 border-gray-300 hover:bg-gray-50"
-                    onClick={() => navigate(`/vacaciones/historial?empleado=${selectedUserId}`)}
-                  >
-                    <Search className="mr-2 h-5 w-5 text-gray-500" />
-                    Ver Historial Completo
-                  </Button>
-
                   <div className="mt-4">
                       {employeeDetail.balance.available_days <= 0 ? (
                         <div className="flex items-start gap-2 p-3 bg-orange-50 rounded text-sm text-orange-700 border border-orange-100">
@@ -437,7 +385,6 @@ export default function EmployeeVacationSearch() {
                   </div>
 
                 </CardContent>
-              </Card>
           </div>
 
         </div>

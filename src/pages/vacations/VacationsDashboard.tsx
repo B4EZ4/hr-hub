@@ -28,13 +28,14 @@ import { useToast } from "@/components/ui/use-toast";
 import VacationRequest from "./VacationRequest";
 import VacationsList from "./VacationsList";
 import VacationCalendar from "./VacationCalendar";
+import EmployeeVacationSearch from "./EmployeeVacationSearch";
 
 const VacationsDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
   // 2. ESTADO PARA CONTROLAR VISTAS ('dashboard' | 'form' | 'list')
-  const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list' | 'calendar'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list' | 'calendar' | 'search'>('dashboard');
 
   // --- CONSULTA 1: Solicitudes Pendientes ---
   const { data: pendingCount = 0, isLoading: loadingPending } = useQuery({
@@ -165,7 +166,20 @@ const VacationsDashboard = () => {
       </div>
     );
   } 
-  // --- VISTA 4: Dashboard Principal ---
+  //VISTA 4: BUSCADOR DE EMPLEADO
+  if (currentView === 'search') {
+    return (
+      <div className={containerClasses}>
+        <div className="flex items-center gap-2 mb-4">
+          <Button variant="ghost" onClick={() => setCurrentView('dashboard')} className="pl-0 hover:pl-2 transition-all">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
+          </Button>
+        </div>
+        <EmployeeVacationSearch />
+      </div>
+    );
+  }
+  // --- VISTA 5: Dashboard Principal ---
   return (
     <div className={containerClasses}>
       {/* Header Section */}
@@ -252,9 +266,9 @@ const VacationsDashboard = () => {
         <h2 className="text-2xl font-bold tracking-tight">Acciones Rápidas</h2>
         <div className={gridClasses}>
 
-          <Card
+      <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-blue-500/50 group"
-            onClick={() => navigate('/vacaciones/buscar')}
+            onClick={() => setCurrentView('search')} // <--- AHORA ABRE LA VISTA 'search'
           >
             <CardHeader className="pb-2">
               <Search className="h-5 w-5 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
@@ -262,7 +276,6 @@ const VacationsDashboard = () => {
               <CardDescription>Encontrar empleado por nombre o ID</CardDescription>
             </CardHeader>
           </Card>
-
           <Card
             className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-purple-500/50 group"
             
