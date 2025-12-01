@@ -172,6 +172,10 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
         resume_url: sanitize(values.resume_url),
         notes: sanitize(values.notes),
         status: values.status || 'nuevo',
+        rfc: sanitize(values.rfc),
+        curp: sanitize(values.curp),
+        nss: sanitize(values.nss),
+        address: sanitize(values.address),
       } satisfies Partial<RecruitmentCandidate> & Pick<RecruitmentCandidate, 'full_name' | 'email' | 'status'>;
 
       // Check for duplicate full_name

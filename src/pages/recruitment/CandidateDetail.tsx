@@ -387,8 +387,11 @@ export default function CandidateDetail() {
         position_id: positionId,
         status: 'activo',
         hire_date: hireDate,
-        address: candidate.current_location,
+        address: candidate.address || candidate.current_location, // Prefer full address
         must_change_password: true,
+        rfc: candidate.rfc,
+        curp: candidate.curp,
+        nss: candidate.nss,
       };
 
       // Check if profile exists
