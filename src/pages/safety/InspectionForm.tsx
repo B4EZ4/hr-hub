@@ -20,10 +20,9 @@ const formSchema = z.object({
   sector_id: z.string().min(1, 'Seleccione un sector'),
   inspector_id: z.string().min(1, 'Seleccione un inspector'),
   scheduled_date: z.string().min(1, 'La fecha es requerida'),
-  status: z.enum(['programada', 'en_progreso', 'en_curso', 'completada', 'cancelada']),
+  status: z.enum(['programada', 'en_progreso', 'completada', 'cancelada']),
   findings: z.string().optional(),
   recommendations: z.string().optional(),
-  completed_date: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -84,7 +83,6 @@ export default function InspectionForm() {
       status: 'programada',
       findings: '',
       recommendations: '',
-      completed_date: '',
     },
   });
 
@@ -97,7 +95,6 @@ export default function InspectionForm() {
         status: inspection.status,
         findings: inspection.findings || '',
         recommendations: inspection.recommendations || '',
-        completed_date: inspection.completed_date || '',
       });
       setUploadedFiles(inspection.file_paths || []);
     }
@@ -109,8 +106,12 @@ export default function InspectionForm() {
         ...data,
         findings: data.findings || null,
         recommendations: data.recommendations || null,
-        completed_date: data.completed_date || null,
         file_paths: uploadedFiles.length > 0 ? uploadedFiles : null,
+        updated_at: new Date().toISOString(),
+        // Si se marca como completada, agregar fecha de completado
+        completed_date: data.status === 'completada'
+          ? new Date().toISOString().split('T')[0]
+          : null
       };
 
       if (isEditing) {
@@ -250,7 +251,6 @@ export default function InspectionForm() {
                         <SelectContent>
                           <SelectItem value="programada">Programada</SelectItem>
                           <SelectItem value="en_progreso">En Progreso</SelectItem>
-                          <SelectItem value="en_curso">En Curso</SelectItem>
                           <SelectItem value="completada">Completada</SelectItem>
                           <SelectItem value="cancelada">Cancelada</SelectItem>
                         </SelectContent>
@@ -259,22 +259,6 @@ export default function InspectionForm() {
                     </FormItem>
                   )}
                 />
-
-                {form.watch('status') === 'completada' && (
-                  <FormField
-                    control={form.control}
-                    name="completed_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha de Finalización</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
               </div>
 
               <FormField

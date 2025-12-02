@@ -29,7 +29,26 @@ const vacationSchema = z.object({
 }, {
   message: 'La fecha de fin debe ser posterior a la fecha de inicio',
   path: ['end_date'],
-});
+})
+  // ➡️ INICIO DEL NUEVO BLOQUE DE VALIDACIÓN DE ANTELACIÓN ⬅️
+  .refine((data) => {
+    const start = new Date(data.start_date);
+    // Normalizar la fecha de inicio para comparar solo días, no horas.
+    start.setHours(0, 0, 0, 0);
+
+    // Calcular la fecha mínima permitida (Hoy + 14 días)
+    const minStartDate = new Date();
+    minStartDate.setDate(minStartDate.getDate() + 14);
+    // Normalizar la fecha mínima
+    minStartDate.setHours(0, 0, 0, 0);
+
+    // La fecha de inicio debe ser mayor o igual que la fecha mínima de solicitud.
+    return start >= minStartDate;
+  }, {
+    message: 'La fecha de inicio debe ser con al menos 14 días de antelación.',
+    path: ['start_date'],
+  });
+// ➡️ FIN DEL NUEVO BLOQUE DE VALIDACIÓN DE ANTELACIÓN ⬅️
 
 type VacationFormData = z.infer<typeof vacationSchema>;
 
@@ -68,7 +87,7 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
       if (error) {
         console.error("Error buscando perfil:", error);
         throw error;
-      } 
+      }
       return data as Profile[];
     },
     enabled: searchTerm.length >= 2 && isSearching,
@@ -76,20 +95,20 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
 
   // --- QUERY DE BALANCE CORREGIDA: Usa user_id ---
   const { data: balance } = useQuery({
-    queryKey: ['vacation-balance', selectedUser?.user_id], // Usamos user_id, no id del perfil
+    queryKey: ['vacation-balances', selectedUser?.user_id], // Usamos user_id, no id del perfil
     queryFn: async () => {
       if (!selectedUser) return null;
       const currentYear = new Date().getFullYear();
-      
+
       const { data, error } = await (supabase as any)
         .from('vacation_balances')
         .select('*')
         .eq('user_id', selectedUser.user_id) // Relación correcta con user_id
         .eq('year', currentYear)
-        .single();
+        .maybeSingle();
 
       // Si no hay balance, devolvemos uno por defecto pero limpio
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
       // Nota: Verifica si tu tabla usa 'available_days' o 'remaining_days'. 
       // En tu SQL anterior era 'available_days', así que mapeamos eso.
       return data || { total_days: 12, used_days: 0, available_days: 12 };
@@ -118,40 +137,68 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
     mutationFn: async (data: VacationFormData) => {
       if (!selectedUser) throw new Error('Debes seleccionar un usuario primero');
 
+      // 1. Cálculos previos
       const days = calculateDays(data.start_date, data.end_date);
-      // Ajuste: Usamos available_days según tu SQL de balances
-      const available = balance?.available_days ?? 12;
+      const currentAvailable = balance?.available_days ?? 12;
 
-      if (balance && days > available) {
-        throw new Error(`El usuario no tiene suficientes días disponibles. Disponibles: ${available}`);
+      // 2. VALIDACIÓN ESTRICTA: Si intenta pedir más de lo que tiene
+      if (balance && days > currentAvailable) {
+        throw new Error(`El usuario no tiene suficientes días. Solicitados: ${days}, Disponibles: ${currentAvailable}`);
       }
 
-      const { error } = await (supabase as any)
+      // 3. PASO A: Insertar la solicitud (Como ya lo tenías)
+      const { error: requestError } = await (supabase as any)
         .from('vacation_requests')
         .insert([{
-          user_id: selectedUser.user_id, // IMPORTANTE: Usar el UUID de usuario, no del perfil
+          user_id: selectedUser.user_id,
           start_date: data.start_date,
           end_date: data.end_date,
           days_requested: days,
-          employee_note: data.reason, // En tu SQL se llama 'employee_note', no 'reason'
-          status: 'pending',          // En tu SQL el default es 'pending'
+          employee_note: data.reason,
+          status: 'pending',
         }]);
+      if (requestError) throw requestError;
 
-      if (error) throw error;
     },
     onSuccess: () => {
+      // Al invalidar, React Query volverá a pedir los datos y la UI se actualizará sola
       queryClient.invalidateQueries({ queryKey: ['vacation-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['vacation-balance'] });
-      // Usamos full_name para el toast
-      toast.success(`Solicitud generada para ${selectedUser?.full_name}`);
+      queryClient.invalidateQueries({ queryKey: ['vacation-balances'] });
+
+      toast.success(`Solicitud generada como pendiente para ${selectedUser?.full_name}`);
       form.reset();
-      onBack(); 
+      onBack();
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al enviar solicitud');
     },
   });
+  // --- MUTACIÓN PARA APROBACIÓN (ESTE BLOQUE DEBE ESTAR AL MISMO NIVEL) ---
+  // NOTA: Esta función DEBE ser llamada desde la vista de Administración/RRHH. 
+  // Asume que el Trigger de PostgreSQL se encargará del descuento del saldo.
+  const approvalMutation = useMutation({
+    mutationFn: async ({ requestId, daysRequested, userId }: { requestId: string, daysRequested: number, userId: string }) => {
+      // 1. Actualizar el estado de la solicitud a 'approved'
+      const { error } = await (supabase as any)
+        .from('vacation_requests')
+        .update({ status: 'approved', approval_date: new Date().toISOString() })
+        .eq('id', requestId);
 
+      if (error) throw error;
+
+      // Si NO usas un Trigger SQL, aquí iría el código para actualizar la tabla 'vacation_balances'
+      // Pero si usas el Trigger, Supabase lo hace automáticamente después de este update.
+    },
+    onSuccess: () => {
+      // Recargar la lista de solicitudes y el balance del usuario
+      queryClient.invalidateQueries({ queryKey: ['vacation-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['vacation-balances'] });
+      toast.success("Solicitud aprobada y saldo actualizado.");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Error al aprobar solicitud');
+    },
+  });
   const handleSelectUser = (user: Profile) => {
     setSelectedUser(user);
     setSearchTerm('');
@@ -162,7 +209,7 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
   const startDate = form.watch('start_date');
   const endDate = form.watch('end_date');
   const requestedDays = startDate && endDate ? calculateDays(startDate, endDate) : 0;
-  
+
   // Helper para mostrar días disponibles seguro
   const diasDisponibles = balance?.available_days ?? 12;
 
@@ -187,9 +234,9 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
       </div>
 
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Gestión de Vacaciones</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Solicitud de Vacaciones</h1>
         <p className="text-muted-foreground">
-          Generar solicitud y consultar balances de colaboradores.
+          Generar solicitud de vacaciones del Empleado.
         </p>
       </div>
 
@@ -236,9 +283,9 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
             )}
             {/* Mensaje si no hay resultados */}
             {isSearching && searchTerm.length >= 2 && searchResults?.length === 0 && (
-               <div className="absolute z-10 w-full mt-1 p-3 bg-white border rounded-md shadow-lg text-sm text-muted-foreground">
-                 No se encontraron colaboradores.
-               </div>
+              <div className="absolute z-10 w-full mt-1 p-3 bg-white border rounded-md shadow-lg text-sm text-muted-foreground">
+                No se encontraron colaboradores.
+              </div>
             )}
           </div>
         </CardContent>
@@ -376,11 +423,11 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
 
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={onBack}>
-                        Cancelar
+                      Cancelar
                     </Button>
                     <Button type="submit" disabled={mutation.isPending || (requestedDays > diasDisponibles)}>
-                        {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Generar Solicitud
+                      {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Generar Solicitud
                     </Button>
                   </div>
                 </form>

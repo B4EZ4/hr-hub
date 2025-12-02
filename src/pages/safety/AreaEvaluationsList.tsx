@@ -110,7 +110,7 @@ export default function AreaEvaluationsList() {
       accessorKey: 'average_score',
       cell: (value: number) => (
         <Badge variant={getScoreVariant(value)}>
-          {value}%
+          {Number(value.toFixed(2))}%
         </Badge>
       ),
     },
@@ -149,14 +149,14 @@ export default function AreaEvaluationsList() {
             <p className="text-muted-foreground">Análisis de condiciones de seguridad e higiene</p>
           </div>
         </div>
-          <Button
-            onClick={() => navigate('/seguridad-higiene/evaluaciones/new')}
-            disabled={!canManageSH}
-            title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Evaluar área
-          </Button>
+        <Button
+          onClick={() => navigate('/seguridad-higiene/evaluaciones/new')}
+          disabled={!canManageSH}
+          title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Evaluar área
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

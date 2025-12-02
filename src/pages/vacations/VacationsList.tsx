@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,8 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+
 export default function VacationsList() {
   const { user } = useAuth();
   const { canApproveVacations } = useRoles();
@@ -28,7 +27,6 @@ export default function VacationsList() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
   const [printData, setPrintData] = useState<any | null>(null);
-  const documentRef = useRef<HTMLDivElement>(null);
 
   // --- QUERY: CARGAR DATOS (ESTRATEGIA SEGURA MANUAL JOIN) ---
   const { data: requests = [], isLoading } = useQuery({
@@ -91,107 +89,116 @@ export default function VacationsList() {
       return combinedData;
     },
   });
-const uploadPdfToStorage = async (blob: Blob, fileName: string) => {
-    const { error } = await supabase.storage
-      .from('documents')
-      .upload(fileName, blob, { contentType: 'application/pdf', upsert: true });
-    if (error) throw error;
-    return fileName;
-  };
-// --- MUTATION: APROBAR / RECHAZAR CON DEBUGGING ---
-  const approvalMutation = useMutation({
-    mutationFn: async ({ request, status }: { request: any; status: 'approved' | 'rejected' }) => {
-      console.log("1. Actualizando estado de solicitud...");
-      
-      // 1. Actualizar el estado
-      const { error: updateError } = await (supabase as any)
-        .from('vacation_requests')
-        .update({ status })
-        .eq('id', request.id);
 
-      if (updateError) throw updateError;
+// --- MUTATION: APROBAR / RECHAZAR (CONECTADA A EDGE FUNCTION) ---
+  const approvalMutation = useMutation({
+    mutationFn: async ({ request, status }: { request: any; status: 'approved' | 'rejected' }) => {
+      console.log("⚡ INICIANDO PROCESO DE APROBACIÓN PARA:", request.id);
+      toast.info("Procesando solicitud y generando documento oficial...");
 
-      // 2. GENERAR PDF
+      // 1. Actualizar el estado en 'vacation_requests'
+      const { error: updateError } = await (supabase as any)
+        .from('vacation_requests')
+        .update({ status })
+        .eq('id', request.id);
+
+      if (updateError) {
+        console.error("❌ Error actualizando solicitud:", updateError);
+        throw updateError;
+      }
+
+      // 2. LLAMAR AL SERVIDOR PARA GENERAR PDF
+      // Obtenemos el token de sesión actual para validar permiso si es necesario
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      let generatedFilePath = '';
+
       try {
-        console.log("2. Iniciando generación de PDF...");
-        // Espera vital para que React renderice el div oculto
-        await new Promise(resolve => setTimeout(resolve, 500)); // Aumenté a 500ms por seguridad
+          const response = await fetch(
+            `https://dzwxepnmyoawcikkldof.supabase.co/functions/v1/generate-vacation-pdf`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ 
+                  request_id: request.id, 
+                  status: status 
+              }),
+            }
+          );
 
-        if (!documentRef.current) {
-            throw new Error("❌ No se encontró la referencia (documentRef is null)");
-        }
+          if (!response.ok) {
+              const errText = await response.text();
+              throw new Error(`Error del servidor generando PDF: ${errText}`);
+          }
 
-        console.log("   - Capturando HTML...");
-        // Usamos window.scroll para evitar cortes en la captura
-        const canvas = await html2canvas(documentRef.current, { 
-            scale: 2, 
-            useCORS: true, 
-            logging: false,
-            scrollY: -window.scrollY 
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        if (imgData === 'data:,') throw new Error("❌ La imagen capturada está vacía (Problema de visibilidad)");
+          const result = await response.json();
+          generatedFilePath = result.file_path; // La ruta REAL del archivo en Storage
+          console.log("✅ PDF generado en servidor:", generatedFilePath);
 
-        console.log("   - Creando PDF...");
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        const pdfBlob = pdf.output('blob');
-
-        // 3. SUBIR AL STORAGE
-        console.log("3. Subiendo al Storage...");
-        const fileName = `vacaciones/${status}_${request.id}_${Date.now()}.pdf`;
-        const filePath = await uploadPdfToStorage(pdfBlob, fileName);
-        console.log("   - Archivo subido en:", filePath);
-
-        // 4. REGISTRAR EN DB
-        console.log("4. Guardando en base de datos...");
-        const docStatus = status === 'approved' ? 'validado' : 'rechazado';
-        const docTitle = status === 'approved' 
-            ? `Vacaciones Aprobadas: ${request.profiles?.full_name}`
-            : `Vacaciones Rechazadas: ${request.profiles?.full_name}`;
-
-        const { data: insertData, error: docError } = await (supabase as any)
-          .from('documents')
-          .insert({
-            title: docTitle,
-            category: 'Recursos Humanos',
-            description: `Solicitud del ${safeDate(request.start_date)} al ${safeDate(request.end_date)}.`,
-            file_path: filePath,
-            file_size: pdfBlob.size,
-            mime_type: 'application/pdf',
-            uploaded_by: user?.id,
-            employee_id: request.user_id,
-            estado: docStatus,
-            is_public: false
-          })
-          .select();
-
-        if (docError) throw docError;
-        console.log("✅ PROCESO TERMINADO CON ÉXITO", insertData);
-
-      } catch (err: any) {
-        console.error("🚨 ERROR EN PROCESO:", err);
-        // Importante: No lanzamos el error para que la UI no se rompa, pero avisamos
-        toast.error("Estado guardado, pero falló el documento: " + err.message);
+      } catch (pdfError: any) {
+          console.error("⚠️ Falló la generación del PDF:", pdfError);
+          toast.warning("La solicitud se procesó, pero hubo un error generando el PDF.");
+          // Opcional: Podrías detener aquí si el PDF es obligatorio, 
+          // pero usualmente dejamos pasar para no bloquear la operación administrativa.
       }
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['vacation-requests-list'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-pending'] });
-      queryClient.invalidateQueries({ queryKey: ['documents'] });      
-      queryClient.invalidateQueries({ queryKey: ['documents-list'] }); 
-      queryClient.invalidateQueries({ queryKey: ['documents', 'todos', 'todos'] });
-      
-      toast.success(variables.status === 'approved' ? 'Proceso completado' : 'Solicitud rechazada');
-      setSelectedRequest(null);
-      setActionType(null);
-    },
-    onError: (err: any) => toast.error("Error general: " + err.message),
-  });
+
+      // 3. GENERAR REGISTRO EN DOCUMENTOS (Con la ruta real)
+      const docStatus = status === 'approved' ? 'validado' : 'rechazado'; 
+      
+      const docTitle = status === 'approved' 
+        ? `Vacaciones Aprobadas: ${request.profiles?.full_name || 'Empleado'}`
+        : `Vacaciones Rechazadas: ${request.profiles?.full_name || 'Empleado'}`;
+
+      // Usamos la ruta generada si existe, si no, ponemos un placeholder de error para no romper la app
+      // Nota: Si generatedFilePath está vacío, el botón "Ver" no funcionará, pero el registro existirá.
+      const finalPath = generatedFilePath || `error/logs/${request.id}`; 
+
+      const newDocument = {
+          title: docTitle,
+          category: 'Recursos Humanos',
+          description: `Solicitud del ${safeDate(request.start_date)} al ${safeDate(request.end_date)}.`,
+          
+          file_path: finalPath, // <--- AQUÍ VA LA RUTA REAL
+          file_size: 0,         // Podrías devolver el tamaño desde la función si quisieras ser preciso
+          mime_type: 'application/pdf', // Ahora sí es un PDF real
+          
+          uploaded_by: user?.id,
+          employee_id: request.user_id,
+          
+          estado: docStatus,
+          is_public: false
+      };
+
+      console.log("📄 Insertando documento oficial:", newDocument);
+
+      const { data: insertData, error: docError } = await (supabase as any)
+        .from('documents')
+        .insert(newDocument)
+        .select();
+
+      if (docError) {
+          console.error("❌ Error insertando registro de documento:", docError);
+          toast.error(`Error guardando el registro: ${docError.message}`);
+      } else {
+          console.log("✅ ÉXITO: Documento registrado:", insertData);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['vacation-requests-list'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents-list'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', 'todos', 'todos'] });
+      
+      toast.success(variables.status === 'approved' ? 'Aprobado y documento generado' : 'Rechazado y documento generado');
+      setSelectedRequest(null);
+      setActionType(null);
+    },
+    onError: (err: any) => toast.error("Error general: " + err.message),
+  });
   // --- IMPRESIÓN ---
   useEffect(() => {
     if (printData) {
@@ -300,9 +307,7 @@ const uploadPdfToStorage = async (blob: Blob, fileName: string) => {
             margin: 0;
             padding: 0;
             background: white; z-index: 9999;
-           display: block !important; 
-            opacity: 1 !important;
-            transform: none !important;
+            display: block !important;
             overflow: hidden; /* Corta cualquier sobrante */
             max-height: 100vh; /* Fuerza a que no mida más de 1 "pantalla/hoja" */
             page-break-after: avoid; /* Evita saltos de página forzados */
@@ -397,89 +402,88 @@ const uploadPdfToStorage = async (blob: Blob, fileName: string) => {
         </AlertDialogContent>
       </AlertDialog>
 
-{/* BLOQUE DE GENERACIÓN DE DOCUMENTO (CORREGIDO) */}
-      {(printData || (selectedRequest && actionType)) && (
-        // ⚠️ CORRECCIÓN: Usamos position absolute fuera de pantalla en lugar de hidden
-        <div 
-            id="printable-doc" 
-            style={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: '-9999px', // Lo sacamos de la vista del usuario
-                zIndex: -50      // Lo ponemos al fondo por si acaso
-            }}
-        >
-           <div 
-             ref={documentRef} // Aquí está la referencia que busca el código
-             className="w-[210mm] min-h-[297mm] bg-white text-black font-sans relative box-border flex flex-col justify-between p-12"
-           >
+      {/* DOCUMENTO IMPRESIÓN */}
+      {printData && (
+        <div id="printable-doc" className="hidden">
+            <div className="w-full h-screen bg-white text-black font-sans relative box-border overflow-hidden flex flex-col justify-between p-12">
             <div className="absolute inset-4 border-[4px] border-blue-700 pointer-events-none"></div>
 
-            {(() => {
-                const data = printData || selectedRequest;
-                if (!data) return null;
+            <div className="flex justify-between items-start mb-12 px-8 pt-8">
+              <div>
+                <h1 className="text-4xl font-extrabold text-blue-800 tracking-tight">RRHH</h1>
+                <p className="text-sm text-gray-500 font-semibold tracking-wider uppercase mt-1">Gestión de Capital Humano</p>
+              </div>
+              <div className="text-right">
+                <h2 className="text-xl font-bold text-gray-900">SOLICITUD DE VACACIONES</h2>
+                <p className="text-xs text-gray-400 font-mono mt-1">ID: {printData.id ? printData.id.toUpperCase().slice(0, 8) : '---'}</p>
+                <div className="mt-3 inline-block px-4 py-1 rounded border-2 text-sm font-bold uppercase tracking-wide border-gray-400 text-gray-600">
+                  {printData.status === 'approved' ? 'AUTORIZADO' : printData.status === 'rejected' ? 'RECHAZADO' : 'PENDIENTE'}
+                </div>
+              </div>
+            </div>
 
-                let statusLabel = 'PENDIENTE';
-                if (data.status === 'approved' || actionType === 'approve' || data.status === 'validado') statusLabel = 'AUTORIZADO';
-                else if (data.status === 'rejected' || actionType === 'reject' || data.status === 'rechazado') statusLabel = 'RECHAZADO';
+            <div className="px-8 space-y-10">
+              <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                <div className="flex items-center gap-2 mb-6 border-b border-gray-200 pb-2">
+                  <User className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider">Información del Colaborador</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-y-6 gap-x-12">
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre Completo</p>
+                    <p className="text-xl font-bold text-gray-800">{printData.profiles?.full_name || '---'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">No. Empleado</p>
+                    <p className="text-lg font-medium text-gray-800">{printData.profiles?.employee_number || 'S/N'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Departamento</p>
+                    <p className="text-base font-medium text-gray-700">{printData.profiles?.areas?.name || 'General'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Puesto</p>
+                    <p className="text-base font-medium text-gray-700">{printData.profiles?.positions?.title || 'General'}</p>
+                  </div>
+                </div>
+              </div>
 
-                return (
-                 <>
-                    {/* ... (EL CONTENIDO INTERNO SE QUEDA IGUAL, ES SOLO EL CONTENEDOR EL QUE IMPORTABA) ... */}
-                    <div className="flex justify-between items-start mb-12 px-8 pt-8">
-                        <div>
-                            <h1 className="text-4xl font-extrabold text-blue-800 tracking-tight">RRHH</h1>
-                            <p className="text-sm text-gray-500 font-semibold tracking-wider uppercase mt-1">Gestión de Capital Humano</p>
-                        </div>
-                        <div className="text-right">
-                            <h2 className="text-xl font-bold text-gray-900">SOLICITUD DE VACACIONES</h2>
-                            <p className="text-xs text-gray-400 font-mono mt-1">ID: {data.id ? data.id.toUpperCase().slice(0, 8) : '---'}</p>
-                            <div className="mt-3 inline-block px-4 py-1 rounded border-2 text-sm font-bold uppercase tracking-wide border-gray-400 text-gray-600">
-                                {statusLabel}
-                            </div>
-                        </div>
-                    </div>
+              <div>
+                <div className="flex items-center gap-2 mb-6 border-b border-gray-200 pb-2">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider">Detalle del Periodo</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="text-center p-4 border rounded shadow-sm">
+                    <p className="text-xs text-blue-600 font-bold uppercase mb-1">Desde el día</p>
+                    {/* AQUI SE APLICA EL FIX DE LA FECHA */}
+                    <p className="text-lg font-bold">{safeDate(printData.start_date)}</p>
+                  </div>
+                  <div className="text-center p-4 border rounded shadow-sm">
+                    <p className="text-xs text-blue-600 font-bold uppercase mb-1">Hasta el día</p>
+                    {/* AQUI SE APLICA EL FIX DE LA FECHA */}
+                    <p className="text-lg font-bold">{safeDate(printData.end_date)}</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-600 text-white rounded shadow-sm">
+                    <p className="text-xs text-blue-100 font-bold uppercase mb-1">Días Solicitados</p>
+                    <p className="text-3xl font-bold">{printData.days_requested}</p>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="px-8 space-y-10">
-                        <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
-                            <div className="flex items-center gap-2 mb-6 border-b border-gray-200 pb-2">
-                                <User className="h-5 w-5 text-blue-600" />
-                                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider">Información del Colaborador</h3>
-                            </div>
-                            <div className="grid grid-cols-2 gap-y-6 gap-x-12">
-                                <div><p className="text-[10px] text-gray-400 font-bold uppercase">Nombre Completo</p><p className="text-xl font-bold text-gray-800">{data.profiles?.full_name || '---'}</p></div>
-                                <div><p className="text-[10px] text-gray-400 font-bold uppercase">No. Empleado</p><p className="text-lg font-medium text-gray-800">{data.profiles?.employee_number || 'S/N'}</p></div>
-                                <div><p className="text-[10px] text-gray-400 font-bold uppercase">Departamento</p><p className="text-base font-medium text-gray-700">{data.profiles?.areas?.name || 'General'}</p></div>
-                                <div><p className="text-[10px] text-gray-400 font-bold uppercase">Puesto</p><p className="text-base font-medium text-gray-700">{data.profiles?.positions?.title || 'General'}</p></div>
-                            </div>
-                        </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Observaciones / Motivo</h3>
+                <div className="w-full p-4 bg-gray-50 border rounded text-sm italic text-gray-600 min-h-[80px]">
+                  {printData.employee_note || "Sin observaciones registradas."}
+                </div>
+              </div>
 
-                        <div>
-                            <div className="flex items-center gap-2 mb-6 border-b border-gray-200 pb-2">
-                                <Calendar className="h-5 w-5 text-blue-600" />
-                                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider">Detalle del Periodo</h3>
-                            </div>
-                            <div className="grid grid-cols-3 gap-6">
-                                <div className="text-center p-4 border rounded shadow-sm"><p className="text-xs text-blue-600 font-bold uppercase mb-1">Desde el día</p><p className="text-lg font-bold">{safeDate(data.start_date)}</p></div>
-                                <div className="text-center p-4 border rounded shadow-sm"><p className="text-xs text-blue-600 font-bold uppercase mb-1">Hasta el día</p><p className="text-lg font-bold">{safeDate(data.end_date)}</p></div>
-                                <div className="text-center p-4 bg-blue-600 text-white rounded shadow-sm"><p className="text-xs text-blue-100 font-bold uppercase mb-1">Días Solicitados</p><p className="text-3xl font-bold">{data.days_requested}</p></div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Observaciones / Motivo</h3>
-                            <div className="w-full p-4 bg-gray-50 border rounded text-sm italic text-gray-600 min-h-[80px]">{data.employee_note || "Sin observaciones registradas."}</div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-24 pt-16">
-                            <div className="text-center border-t-2 border-black pt-2"><p className="font-bold text-sm">{data.profiles?.full_name}</p><p className="text-[10px] text-gray-500 uppercase">Firma Colaborador</p></div>
-                            <div className="text-center border-t-2 border-black pt-2"><p className="font-bold text-sm">RECURSOS HUMANOS</p><p className="text-[10px] text-gray-500 uppercase">Autorización</p></div>
-                        </div>
-                    </div>
-                    <div className="absolute bottom-6 w-full text-center text-[10px] text-blue-700 font-bold uppercase tracking-widest">Departamento de Recursos Humanos • Documento Oficial</div>
-                 </>
-                );
-            })()}
+              <div className="grid grid-cols-2 gap-24 pt-16">
+                <div className="text-center border-t-2 border-black pt-2"><p className="font-bold text-sm">{printData.profiles?.full_name}</p><p className="text-[10px] text-gray-500 uppercase">Firma Colaborador</p></div>
+                <div className="text-center border-t-2 border-black pt-2"><p className="font-bold text-sm">RECURSOS HUMANOS</p><p className="text-[10px] text-gray-500 uppercase">Autorización</p></div>
+              </div>
+            </div>
+            <div className="absolute bottom-6 w-full text-center text-[10px] text-blue-700 font-bold uppercase tracking-widest">Departamento de Recursos Humanos • Documento Oficial</div>
           </div>
         </div>
       )}

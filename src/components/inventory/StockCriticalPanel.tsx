@@ -18,12 +18,12 @@ export function StockCriticalPanel() {
         .order('stock_quantity', { ascending: true });
 
       if (error) throw error;
-      
+
       // Filtrar items críticos en el cliente (stock <= min_stock)
-      const filtered = (data || []).filter((item: any) => 
+      const filtered = (data || []).filter((item: any) =>
         item.stock_quantity <= (item.min_stock || 0)
       );
-      
+
       return filtered;
     },
   });
@@ -113,10 +113,6 @@ export function StockCriticalPanel() {
             </div>
           ))}
         </div>
-        <Button className="w-full mt-4" variant="outline">
-          <Package className="mr-2 h-4 w-4" />
-          Reabastecimiento Masivo
-        </Button>
       </CardContent>
     </Card>
   );

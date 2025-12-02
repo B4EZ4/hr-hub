@@ -41,6 +41,7 @@ async function fetchRecruitmentData(): Promise<RecruitmentData> {
     (supabase as any)
       .from('recruitment_interviews')
       .select('*')
+      .gte('scheduled_at', new Date().toISOString().split('T')[0]) // Filter from today onwards
       .order('scheduled_at', { ascending: true })
       .limit(5),
   ]);
@@ -109,7 +110,8 @@ export default function RecruitmentDashboard() {
     }));
 
     const today = new Date();
-    const weekAhead = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day to include today's interviews
+    const weekAhead = new Date(today);
     weekAhead.setDate(today.getDate() + 7);
 
     const positionsMap = new Map(data.positions.map((position: Position) => [position.id, position]));
