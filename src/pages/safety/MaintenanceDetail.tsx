@@ -153,6 +153,20 @@ export default function MaintenanceDetail() {
                 </p>
               </div>
             )}
+
+            {maintenance.completion_notes && maintenance.status === 'completado' && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Notas de Finalización</label>
+                <p className="mt-1 whitespace-pre-wrap">{maintenance.completion_notes}</p>
+              </div>
+            )}
+
+            {maintenance.cancellation_reason && maintenance.status === 'cancelado' && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Razón de Cancelación</label>
+                <p className="mt-1 whitespace-pre-wrap">{maintenance.cancellation_reason}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -177,15 +191,48 @@ export default function MaintenanceDetail() {
               </div>
             )}
 
-            {maintenance.completed_date && (
+            {maintenance.start_date && (
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Fecha de Finalización</label>
+                <label className="text-sm font-medium text-muted-foreground">Fecha de Inicio</label>
                 <p className="mt-1 font-medium">
-                  {new Date(maintenance.completed_date).toLocaleDateString('es-ES', {
+                  {new Date(maintenance.start_date).toLocaleDateString('es-ES', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
                   })}
+                </p>
+              </div>
+            )}
+
+            {maintenance.end_date && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  {maintenance.status === 'completado' ? 'Fecha de Finalización' : 'Fecha de Fin'}
+                </label>
+                <p className="mt-1 font-medium">
+                  {new Date(maintenance.end_date).toLocaleDateString('es-ES', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </p>
+              </div>
+            )}
+
+            {maintenance.estimated_duration && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Duración Estimada</label>
+                <p className="mt-1 font-medium">
+                  {maintenance.estimated_duration} día{maintenance.estimated_duration > 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+
+            {maintenance.actual_duration && maintenance.status === 'completado' && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Duración Real</label>
+                <p className="mt-1 font-medium">
+                  {maintenance.actual_duration} día{maintenance.actual_duration > 1 ? 's' : ''}
                 </p>
               </div>
             )}
