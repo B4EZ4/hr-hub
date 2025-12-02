@@ -23,10 +23,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, Edit, Trash2, Eye, Check, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Check, X , BarChart3} from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
 
 const ITEMS_PER_PAGE = 10;
 
@@ -170,6 +171,7 @@ export default function TerminationsList() {
         <h1 className="text-3xl font-bold">Gestión de Despidos</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate('/despidos/dashboard')}>
+          <BarChart3 className="mr-2 h-4 w-4" />
             Dashboard
           </Button>
           <Button onClick={() => navigate('/despidos/nuevo')}>

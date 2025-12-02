@@ -31,6 +31,7 @@ export default function IncidentForm() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filePaths, setFilePaths] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
 
@@ -96,6 +97,38 @@ export default function IncidentForm() {
       toast.error(error.message || 'Error al reportar incidencia');
     },
   });
+
+  const BUCKET_PROP = 'documents/incidencias';
+
+  const handleFileSelected = async (file: File | null) => {
+    if (!file) return;
+    if (!user) {
+      toast.error('Debes iniciar sesión para subir archivos.');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const parts = BUCKET_PROP.split('/').filter(Boolean);
+      const bucketName = parts[0];
+      const prefix = parts.slice(1).join('/');
+
+      const safeFileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storagePath = prefix ? `${prefix}/${user.id}/${safeFileName}` : `${user.id}/${safeFileName}`;
+
+      const { data, error } = await supabase.storage.from(bucketName).upload(storagePath, file);
+      if (error) throw error;
+
+      const storedPath = (data as any)?.path ?? storagePath;
+      setFilePaths((prev) => [...prev, storedPath]);
+      toast.success('Archivo adjuntado');
+    } catch (err: any) {
+      console.error('Error uploading file', err);
+      toast.error(err?.message || 'Error al subir el archivo');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -253,18 +286,13 @@ export default function IncidentForm() {
               Evidencias
             </label>
             <FileUploader
-              {...({
-                bucket: 'incidents',
-                accept: 'image/*,.pdf',
-                maxSize: 10,
-                onUploadComplete: (path: string) => {
-                  setFilePaths((prev) => [...prev, path]);
-                  toast.success('Archivo adjuntado');
-                },
-                onUploadError: (error: string) => {
-                  toast.error(`Error: ${error}`);
-                },
-              } as any)}
+              bucket={BUCKET_PROP}
+              accept={'image/*,.pdf'}
+              maxSize={10}
+              onFileSelected={handleFileSelected}
+              onUploadError={(error: string) => {
+                toast.error(`Error: ${error}`);
+              }}
             />
             {filePaths.length > 0 && (
               <div className="mt-2 space-y-1">
@@ -278,7 +306,7 @@ export default function IncidentForm() {
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || uploading}>
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Reportar Incidencia
             </Button>

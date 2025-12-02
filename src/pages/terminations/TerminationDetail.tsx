@@ -78,13 +78,38 @@ export default function TerminationDetail() {
     },
   });
 
+  const handleFileSelected = async (file: File | null) => {
+    if (!file) return;
+    if (!termination?.employee_id) {
+      toast.error('No se encontró el empleado asociado al despido');
+      return;
+    }
+
+    try {
+      const bucketName = 'documents';
+      const prefix = 'despidos';
+      const safeFileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storagePath = `${prefix}/${termination.employee_id}/${safeFileName}`;
+
+      const { data, error } = await supabase.storage.from(bucketName).upload(storagePath, file);
+      if (error) throw error;
+
+      const storedPath = (data as any)?.path ?? storagePath;
+      // Call the mutation that inserts the document row and registers audit
+      uploadMutation.mutate(storedPath);
+    } catch (err: any) {
+      console.error('Error uploading termination document', err);
+      toast.error(err?.message || 'Error al subir el documento');
+    }
+  };
+
   const uploadMutation = useMutation({
     mutationFn: async (filePath: string) => {
       const userId = (await supabase.auth.getUser()).data.user?.id;
       const fileName = filePath.split('/').pop() || 'documento';
 
       const { data: { publicUrl } } = supabase.storage
-        .from('despidos')
+        .from('documents')
         .getPublicUrl(filePath);
 
       const { error } = await supabase.from('despido_documentos').insert({
@@ -97,7 +122,7 @@ export default function TerminationDetail() {
 
       if (error) {
         // Compensación: borrar archivo si falla la inserción
-        await supabase.storage.from('despidos').remove([filePath]);
+        await supabase.storage.from('documents').remove([filePath]);
         throw error;
       }
 
@@ -138,9 +163,9 @@ export default function TerminationDetail() {
       
       if (error) throw error;
 
-      // Borrar archivo del storage
+      // Borrar archivo del storage (bucket `documents`, path stored in file_path)
       if (doc?.file_path) {
-        await supabase.storage.from('despidos').remove([doc.file_path]);
+        await supabase.storage.from('documents').remove([doc.file_path]);
       }
     },
     onSuccess: () => {
@@ -265,10 +290,11 @@ export default function TerminationDetail() {
         </CardHeader>
         <CardContent className="space-y-4">
           <FileUploader
-            bucket="despidos"
-            path={`${termination.employee_id}`}
-            onUploadComplete={(path) => uploadMutation.mutate(path)}
+            bucket="documents"
+            accept={'image/*,.pdf'}
             maxSize={10}
+            onFileSelected={handleFileSelected}
+            onUploadError={(err) => toast.error(`Error: ${err}`)}
           />
 
           {documents && documents.length > 0 && (
@@ -291,7 +317,7 @@ export default function TerminationDetail() {
                         variant="ghost"
                         size="sm"
                         onClick={async () => {
-                          const { data } = supabase.storage.from('despidos').getPublicUrl(doc.file_path);
+                          const { data } = supabase.storage.from('documents').getPublicUrl(doc.file_path);
                           window.open(data.publicUrl, '_blank');
                         }}
                       >
