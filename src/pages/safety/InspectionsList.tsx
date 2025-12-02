@@ -4,57 +4,100 @@ import { supabase } from '@/lib/supabase-with-auth';
 import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, Play, CheckCircle, XCircle } from 'lucide-react';
 import { useRoles } from '@/hooks/useRoles';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export default function InspectionsList() {
   const navigate = useNavigate();
   const { canManageSH } = useRoles();
+  const queryClient = useQueryClient();
+
+  // Mutación para iniciar inspección
+  const startInspectionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('sh_inspections')
+        .update({
+          status: 'en_progreso',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sh-inspections'] });
+      toast.success('Inspección iniciada');
+    },
+    onError: (error: any) => {
+      toast.error('Error al iniciar inspección: ' + error.message);
+    },
+  });
+
+  // Mutación para completar inspección
+  const completeInspectionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('sh_inspections')
+        .update({
+          status: 'completada',
+          completed_date: new Date().toISOString().split('T')[0],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sh-inspections'] });
+      toast.success('Inspección completada');
+    },
+    onError: (error: any) => {
+      toast.error('Error al completar inspección: ' + error.message);
+    },
+  });
+
+  // Mutación para cancelar inspección
+  const cancelInspectionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('sh_inspections')
+        .update({
+          status: 'cancelada',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sh-inspections'] });
+      toast.success('Inspección cancelada');
+    },
+    onError: (error: any) => {
+      toast.error('Error al cancelar inspección: ' + error.message);
+    },
+  });
 
   const { data: inspections = [], isLoading } = useQuery({
     queryKey: ['sh-inspections'],
     queryFn: async () => {
       const { data: inspectionsData, error: inspError } = await (supabase as any)
         .from('sh_inspections')
-        .select('*')
+        .select(`
+          *,
+          sector:sector_id (id, name),
+          inspector:inspector_id (id, full_name)
+        `)
         .order('scheduled_date', { ascending: false });
 
       if (inspError) throw inspError;
-      if (!inspectionsData || inspectionsData.length === 0) return [];
-
-      // Obtener sectores
-      const sectorIds = [...new Set(inspectionsData.map((i: any) => i.sector_id).filter(Boolean))];
-      let sectorsMap: Record<string, any> = {};
-      if (sectorIds.length > 0) {
-        const { data: sectors } = await (supabase as any)
-          .from('sh_sectors')
-          .select('id, name')
-          .in('id', sectorIds);
-        sectorsMap = (sectors || []).reduce((acc: any, s: any) => ({ ...acc, [s.id]: s }), {});
-      }
-
-      // Obtener inspectores (profiles)
-      const inspectorIds = [...new Set(inspectionsData.map((i: any) => i.inspector_id).filter(Boolean))];
-      let inspectorsMap: Record<string, any> = {};
-      if (inspectorIds.length > 0) {
-        const { data: profiles } = await (supabase as any)
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', inspectorIds);
-        inspectorsMap = (profiles || []).reduce((acc: any, p: any) => ({ ...acc, [p.user_id]: p }), {});
-      }
-
-      return inspectionsData.map((inspection: any) => ({
-        ...inspection,
-        sector: inspection.sector_id ? sectorsMap[inspection.sector_id] : null,
-        inspector: inspection.inspector_id ? inspectorsMap[inspection.inspector_id] : null,
-      }));
+      return inspectionsData || [];
     },
   });
 
   const statusMap: Record<string, { label: string; variant: any }> = {
     programada: { label: 'Programada', variant: 'default' },
-    en_progreso: { label: 'En Progreso', variant: 'default' },
+    en_progreso: { label: 'En Progreso', variant: 'secondary' },
     completada: { label: 'Completada', variant: 'success' },
     cancelada: { label: 'Cancelada', variant: 'outline' },
   };
@@ -71,9 +114,14 @@ export default function InspectionsList() {
       cell: (value: any) => value?.full_name || '-',
     },
     {
-      header: 'Fecha',
+      header: 'Fecha Programada',
       accessorKey: 'scheduled_date',
       cell: (value: string) => new Date(value).toLocaleDateString('es-ES'),
+    },
+    {
+      header: 'Fecha Completada',
+      accessorKey: 'completed_date',
+      cell: (value: string) => value ? new Date(value).toLocaleDateString('es-ES') : '-',
     },
     {
       header: 'Estado',
@@ -124,36 +172,71 @@ export default function InspectionsList() {
         onRowClick={(row) => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
         actions={(row: any) => (
           <div className="flex gap-2">
-            {row.status === 'programada' && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
-                disabled={!canManageSH}
-                title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
-              >
-                Iniciar Inspección
-              </Button>
-            )}
-            {row.status === 'en_progreso' && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/ejecutar`)}
-                disabled={!canManageSH}
-                title={canManageSH ? undefined : 'Requiere rol Oficial S&H o Superadmin'}
-              >
-                Continuar
-              </Button>
-            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}`)}
             >
               <Eye className="mr-2 h-4 w-4" />
-              Ver detalle
+              Ver
             </Button>
+
+            {canManageSH && (
+              <>
+                {row.status === 'programada' && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/seguridad-higiene/inspecciones/${row.id}/edit`)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => startInspectionMutation.mutate(row.id)}
+                      disabled={startInspectionMutation.isPending}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Iniciar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => cancelInspectionMutation.mutate(row.id)}
+                      disabled={cancelInspectionMutation.isPending}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancelar
+                    </Button>
+                  </>
+                )}
+
+                {row.status === 'en_progreso' && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => completeInspectionMutation.mutate(row.id)}
+                      disabled={completeInspectionMutation.isPending}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Completar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => cancelInspectionMutation.mutate(row.id)}
+                      disabled={cancelInspectionMutation.isPending}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancelar
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
       />
