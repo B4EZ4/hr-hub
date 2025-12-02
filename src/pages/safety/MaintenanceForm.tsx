@@ -159,7 +159,7 @@ export default function MaintenanceForm() {
     },
   });
 
-  // Función para completar mantenimiento
+  // Función para completar mantenimiento - VERSIÓN CORREGIDA
   const completeMaintenanceMutation = useMutation({
     mutationFn: async (notes: string) => {
       // Obtener el mantenimiento actual para calcular duración
@@ -178,8 +178,7 @@ export default function MaintenanceForm() {
         .update({
           status: 'completado',
           completion_notes: notes,
-          completed_date: new Date().toISOString(),
-          end_date: new Date().toISOString(),
+          end_date: new Date().toISOString(), // CORREGIDO: usar end_date en lugar de completed_date
           updated_at: new Date().toISOString(),
           actual_duration: actualDuration
         })
