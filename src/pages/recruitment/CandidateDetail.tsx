@@ -35,6 +35,9 @@ type ApplicationRow = Tables<'recruitment_applications'> & {
 type InterviewRow = Tables<'recruitment_interviews'>;
 
 interface CandidateDetailData extends CandidateRow {
+  recruiter?: {
+    full_name: string | null;
+  } | null;
   recruitment_applications: Array<
     ApplicationRow & {
       recruitment_interviews: InterviewRow[];
@@ -52,7 +55,10 @@ const fetchCandidateDetail = async (candidateId: string): Promise<CandidateDetai
     .from('recruitment_candidates')
     .select(`
       *,
-      recruitment_applications (
+      recruiter: profiles!recruitment_candidates_assigned_recruiter_fkey(
+        full_name
+      ),
+      recruitment_applications(
         id,
         status,
         current_stage,
@@ -60,7 +66,7 @@ const fetchCandidateDetail = async (candidateId: string): Promise<CandidateDetai
         salary_expectation,
         availability_date,
         position_id,
-        position:recruitment_positions!recruitment_applications_position_id_fkey (
+        position: recruitment_positions!recruitment_applications_position_id_fkey(
           id,
           title,
           department,
@@ -70,17 +76,17 @@ const fetchCandidateDetail = async (candidateId: string): Promise<CandidateDetai
           work_start_time,
           work_end_time
         ),
-          recruitment_interviews (
-            id,
-            interview_type,
-            status,
-            scheduled_at,
-            feedback_summary,
-            next_steps,
-            decision
-          )
+        recruitment_interviews(
+          id,
+          interview_type,
+          status,
+          scheduled_at,
+          feedback_summary,
+          next_steps,
+          decision
+        )
       )
-    `)
+        `)
     .eq('id', candidateId)
     .order('created_at', { foreignTable: 'recruitment_applications', ascending: false })
     .order('scheduled_at', { foreignTable: 'recruitment_applications.recruitment_interviews', ascending: false });
@@ -125,6 +131,17 @@ const formatSchedule = (start?: string | null, end?: string | null) => {
   return `${start.slice(0, 5)} - ${end.slice(0, 5)}`;
 };
 
+const applicationStatusLabels: Record<string, string> = {
+  nuevo: 'Nuevo',
+  en_revision: 'En revisión',
+  screening: 'Evaluación inicial',
+  entrevista: 'Entrevista',
+  oferta: 'Oferta',
+  contratado: 'Contratado',
+  rechazado: 'Rechazado',
+};
+
+
 const renderInfoRow = (label: string, value: string | null) => (
   <div className="flex flex-col gap-1">
     <span className="text-sm text-muted-foreground">{label}</span>
@@ -147,7 +164,7 @@ export default function CandidateDetail() {
 
   const generateTempPassword = () => {
     const randomSegment = Math.random().toString(36).slice(-8);
-    return `Hr-${Date.now().toString().slice(-4)}${randomSegment}!1`;
+    return `Hr - ${Date.now().toString().slice(-4)}${randomSegment}!1`;
   };
 
   const handleOpenUpdate = (interview: InterviewRow) => {
@@ -394,39 +411,37 @@ export default function CandidateDetail() {
         nss: candidate.nss,
       };
 
-      // Check if profile exists
-      const { data: existingProfile, error: profileLookupError } = await (supabase as any)
-        .from('profiles')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
+      console.log('--- INICIO DEBUG CONTRATACIÓN ---');
+      console.log('Payload del perfil:', profilePayload);
+      console.log('UserID:', userId);
 
-      if (profileLookupError) throw profileLookupError;
+      // Usamos upsert para manejar automáticamente la creación o actualización
+      // onConflict: 'user_id' usa la restricción que YA existe en tu BD
+      // Usamos RPC para evitar problemas con ON CONFLICT y triggers ocultos
+      const { data: profileIdData, error: rpcError } = await (supabase as any)
+        .rpc('create_profile_safe', {
+          p_user_id: userId,
+          p_full_name: candidate.full_name,
+          p_email: candidate.email.trim(),
+          p_phone: candidate.phone,
+          p_department: position?.department,
+          p_position: position?.title,
+          p_area_id: areaId,
+          p_position_id: positionId,
+          p_hire_date: hireDate,
+          p_address: candidate.address || candidate.current_location,
+          p_rfc: candidate.rfc,
+          p_curp: candidate.curp,
+          p_nss: candidate.nss
+        });
 
-      let profileId = existingProfile?.id;
-
-      if (profileId) {
-        const { error: updateProfileError } = await (supabase as any)
-          .from('profiles')
-          .update(profilePayload)
-          .eq('id', profileId);
-
-        if (updateProfileError) throw updateProfileError;
-      } else {
-        const { data: insertedProfile, error: insertProfileError } = await (supabase as any)
-          .from('profiles')
-          .insert([
-            {
-              ...profilePayload,
-              user_id: userId,
-            },
-          ])
-          .select('id')
-          .single();
-
-        if (insertProfileError) throw insertProfileError;
-        profileId = insertedProfile.id;
+      if (rpcError) {
+        console.error('Error en RPC create_profile_safe:', rpcError);
+        throw rpcError;
       }
+
+      console.log('Perfil procesado correctamente vía RPC. ID:', profileIdData);
+      let profileId = profileIdData;
 
       const { error: roleError } = await (supabase as any)
         .from('user_roles')
@@ -435,7 +450,11 @@ export default function CandidateDetail() {
           { onConflict: 'user_id,role' }
         );
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error('Error asignando rol:', roleError);
+        throw roleError;
+      }
+      console.log('Rol asignado correctamente');
 
       const { error: candidateError } = await (supabase as any)
         .from('recruitment_candidates')
@@ -453,22 +472,10 @@ export default function CandidateDetail() {
 
       // --- INTEGRACIÓN MÓDULOS ---
 
-      // 1. Inicializar Balance de Vacaciones (12 días por defecto)
-      const currentYear = new Date().getFullYear();
-      const { error: vacationError } = await (supabase as any)
-        .from('vacation_balances')
-        .insert({
-          user_id: userId,
-          year: currentYear,
-          total_days: 12,
-          available_days: 12,
-          used_days: 0
-        });
-
-      if (vacationError) {
-        console.error('Error initializing vacation balance:', vacationError);
-        // No lanzamos error para no detener el flujo principal
-      }
+      // 1. Inicializar Balance de Vacaciones
+      // YA NO ES NECESARIO: El trigger auto_create_vacation_balance lo hace automáticamente
+      // al crear el perfil.
+      console.log('Balance de vacaciones manejado por trigger automático.');
 
       // 2. Notificación de Seguridad e Higiene (Inducción)
       // Si el departamento es operativo, notificar a RRHH/Seguridad
@@ -488,9 +495,9 @@ export default function CandidateDetail() {
           const notifications = hrAdmins.map((admin: any) => ({
             user_id: admin.user_id,
             title: '⚠️ Inducción de Seguridad Requerida',
-            message: `El nuevo ingreso ${candidate.full_name} (${departmentName}) requiere inducción de seguridad inmediata.`,
+            message: `El nuevo ingreso ${candidate.full_name}(${departmentName}) requiere inducción de seguridad inmediata.`,
             type: 'security_alert',
-            link: `/employees/${userId}` // Enlace al perfil del empleado
+            link: `/ employees / ${userId}` // Enlace al perfil del empleado
           }));
 
           const { error: notifError } = await (supabase as any)
@@ -503,30 +510,30 @@ export default function CandidateDetail() {
 
 
       // Create contract record (match DB schema: requires contract_number and `type`)
-      const contractNumber = `CNT-${Date.now().toString().slice(-6)}-${Math.random()
+      const contractNumber = `CNT - ${Date.now().toString().slice(-6)} - ${Math.random()
         .toString(36)
-        .slice(2, 6)}`;
+        .slice(2, 6)
+        }`;
 
-      const { data: newContract, error: contractError } = await (supabase as any)
-        .from('contracts')
-        .insert({
-          user_id: userId,
-          contract_number: contractNumber,
-          type: 'indefinido',
-          start_date: hireDate,
-          status: 'activo',
-          department: position?.department || null,
-          position: position?.title || 'Sin especificar',
-          salary: application.salary_expectation || null,
-        })
-        .select('id')
-        .single();
+      const { data: newContractId, error: contractError } = await (supabase as any)
+        .rpc('create_contract_safe', {
+          p_user_id: userId,
+          p_contract_number: contractNumber,
+          p_type: 'indefinido',
+          p_start_date: hireDate,
+          p_status: 'activo',
+          p_department: position?.department || null,
+          p_position: position?.title || 'Sin especificar',
+          p_salary: application.salary_expectation || null,
+          p_area_id: areaId,
+          p_position_id: positionId
+        });
 
       if (contractError) {
         console.error('Error creating contract:', contractError);
         // Don't fail the whole process if contract creation fails, but log it
         toast.error('Empleado contratado, pero hubo un error al crear el registro de contrato.');
-      } else if (newContract?.id) {
+      } else if (newContractId) {
         // Generate PDF contract
         try {
           const { getSessionToken } = await import('@/lib/auth');
@@ -542,7 +549,7 @@ export default function CandidateDetail() {
                 'x-session-token': token || '',
               },
               body: JSON.stringify({
-                contract_id: newContract.id,
+                contract_id: newContractId,
               }),
             }
           );
@@ -559,26 +566,14 @@ export default function CandidateDetail() {
         }
       }
 
-      await (supabase as any)
-        .from('vacation_balances')
-        .upsert(
-          [
-            {
-              user_id: userId,
-              total_days: 15,
-              used_days: 0,
-              available_days: 15,
-              year: new Date().getFullYear(),
-            },
-          ],
-          { onConflict: 'user_id' }
-        );
+      // Removed redundant vacation_balances upsert
+
 
       return { tempPassword };
     },
     onSuccess: async ({ tempPassword }) => {
       if (tempPassword) {
-        toast.success(`Candidato contratado. Contraseña temporal: ${tempPassword}`);
+        toast.success(`Candidato contratado.Contraseña temporal: ${tempPassword}`);
       } else {
         toast.success('Candidato contratado y vinculado al empleado existente.');
       }
@@ -732,7 +727,7 @@ export default function CandidateDetail() {
             {renderInfoRow('Fuente', candidate.source)}
             {renderInfoRow('Nivel / Experiencia', candidate.seniority)}
             {renderInfoRow('Estado', candidate.status)}
-            {renderInfoRow('Reclutador asignado', candidate.assigned_recruiter)}
+            {renderInfoRow('Reclutador asignado', candidate.recruiter?.full_name || candidate.assigned_recruiter)}
             {renderInfoRow('RFC', candidate.rfc)}
             {renderInfoRow('CURP', candidate.curp)}
             {renderInfoRow('NSS (IMSS)', candidate.nss)}
@@ -772,7 +767,7 @@ export default function CandidateDetail() {
                     <Badge>{latestApplication.current_stage || 'Sin etapa'}</Badge>
                   </div>
                   <p><span className="text-muted-foreground">Prioridad:</span> {latestApplication.priority || 'Media'}</p>
-                  <p><span className="text-muted-foreground">Estado:</span> {latestApplication.status}</p>
+                  <p><span className="text-muted-foreground">Estado:</span> {applicationStatusLabels[latestApplication.status] || latestApplication.status}</p>
                   <p>
                     <span className="text-muted-foreground">Disponibilidad:</span>{' '}
                     {latestApplication.availability_date ? new Date(latestApplication.availability_date).toLocaleDateString() : 'No definida'}

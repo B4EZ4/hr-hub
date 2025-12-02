@@ -29,7 +29,7 @@ export const VacanciesManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
-  
+
   const [formData, setFormData] = useState({
     position_title: '',
     description: '',
@@ -56,7 +56,7 @@ export const VacanciesManagement = () => {
         .from('job_vacancies')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data;
     },
@@ -70,7 +70,7 @@ export const VacanciesManagement = () => {
         .select('id, name')
         .eq('status', 'activo')
         .order('name');
-      
+
       if (error) throw error;
       return data;
     },
@@ -151,7 +151,7 @@ export const VacanciesManagement = () => {
 
   const statusLabels: Record<string, string> = {
     abierta: 'Abierta',
-    en_proceso: 'En Proceso',
+    en_proceso: 'En proceso',
     cerrada: 'Cerrada',
     cancelada: 'Cancelada',
   };
@@ -165,8 +165,8 @@ export const VacanciesManagement = () => {
 
   const columns = [
     { header: 'Posición', accessorKey: 'position_title' as keyof Vacancy },
-    { 
-      header: 'Estado', 
+    {
+      header: 'Estado',
       accessorKey: 'status' as keyof Vacancy,
       cell: (value: string) => (
         <Badge variant={value === 'abierta' ? 'default' : 'secondary'}>
@@ -174,8 +174,8 @@ export const VacanciesManagement = () => {
         </Badge>
       ),
     },
-    { 
-      header: 'Prioridad', 
+    {
+      header: 'Prioridad',
       accessorKey: 'priority' as keyof Vacancy,
       cell: (value: string) => (
         <Badge variant={value === 'alta' || value === 'critica' ? 'destructive' : 'outline'}>
@@ -288,7 +288,7 @@ export const VacanciesManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="abierta">Abierta</SelectItem>
-                        <SelectItem value="en_proceso">En Proceso</SelectItem>
+                        <SelectItem value="en_proceso">En proceso</SelectItem>
                         <SelectItem value="cerrada">Cerrada</SelectItem>
                       </SelectContent>
                     </Select>

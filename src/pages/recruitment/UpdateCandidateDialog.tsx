@@ -21,6 +21,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -57,6 +58,12 @@ const candidateSchema = z.object({
         .max(255, 'Máximo 255 caracteres')
         .optional()
         .or(z.literal('')),
+    resume_url: z
+        .string()
+        .url('URL inválida')
+        .optional()
+        .or(z.literal('')),
+    notes: z.string().max(2000, 'Máximo 2000 caracteres').optional().or(z.literal('')),
     status: z.enum(['nuevo', 'en_proceso', 'oferta', 'contratado', 'rechazado', 'archivado']),
     // Campos legales mexicanos con validaciones específicas
     rfc: z
@@ -108,7 +115,13 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
             source: '',
             seniority: '',
             current_location: '',
+            resume_url: '',
+            notes: '',
             status: 'nuevo',
+            rfc: '',
+            curp: '',
+            nss: '',
+            address: '',
         },
     });
 
@@ -121,7 +134,13 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                 source: candidate.source || '',
                 seniority: candidate.seniority || '',
                 current_location: candidate.current_location || '',
+                resume_url: candidate.resume_url || '',
+                notes: candidate.notes || '',
                 status: (candidate.status as any) || 'nuevo',
+                rfc: candidate.rfc || '',
+                curp: candidate.curp || '',
+                nss: candidate.nss || '',
+                address: candidate.address || '',
             });
         }
     }, [open, candidate, form]);
@@ -135,7 +154,13 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                 source: sanitize(values.source),
                 seniority: sanitize(values.seniority),
                 current_location: sanitize(values.current_location),
+                resume_url: sanitize(values.resume_url),
+                notes: sanitize(values.notes),
                 status: values.status,
+                rfc: sanitize(values.rfc),
+                curp: sanitize(values.curp),
+                nss: sanitize(values.nss),
+                address: sanitize(values.address),
             };
 
             // Check for duplicate full_name
@@ -352,6 +377,38 @@ export function UpdateCandidateDialog({ open, onOpenChange, candidate, onUpdated
                                         <FormLabel>Dirección completa</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="Calle, número, colonia, ciudad" disabled={mutation.isPending} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="resume_url"
+                                render={({ field }) => (
+                                    <FormItem className="md:col-span-2">
+                                        <FormLabel>URL de CV</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="https://..." disabled={mutation.isPending} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="notes"
+                                render={({ field }) => (
+                                    <FormItem className="md:col-span-2">
+                                        <FormLabel>Notas internas</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                {...field}
+                                                placeholder="Notas sobre el candidato..."
+                                                className="min-h-[100px] resize-none"
+                                                disabled={mutation.isPending}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
