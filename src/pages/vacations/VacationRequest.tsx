@@ -60,6 +60,7 @@ type Profile = {
   full_name: string; // Columna real en tu DB
   email: string;
   department?: string;
+  status?: string;
 };
 
 // 4. Componente Principal
@@ -136,7 +137,9 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
   const mutation = useMutation({
     mutationFn: async (data: VacationFormData) => {
       if (!selectedUser) throw new Error('Debes seleccionar un usuario primero');
-
+if (selectedUser.status === 'inactivo') {
+        throw new Error(`No se puede generar la solicitud: El colaborador ${selectedUser.full_name} se encuentra INACTIVO (Baja).`);
+      }
       // 1. Cálculos previos
       const days = calculateDays(data.start_date, data.end_date);
       const currentAvailable = balance?.available_days ?? 12;
@@ -425,9 +428,15 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
                     <Button type="button" variant="outline" onClick={onBack}>
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={mutation.isPending || (requestedDays > diasDisponibles)}>
+                    <Button 
+                      type="submit" 
+                      // Se deshabilita si está cargando, si excede días O si el usuario está inactivo
+                      disabled={mutation.isPending || (requestedDays > diasDisponibles) || selectedUser?.status === 'inactivo'}
+                      // Opcional: Cambiar estilo si está inactivo para que sea evidente
+                      className={selectedUser?.status === 'inactivo' ? "opacity-50 cursor-not-allowed bg-red-500 hover:bg-red-600 text-white" : ""}
+                    >
                       {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Generar Solicitud
+                      {selectedUser?.status === 'inactivo' ? 'Empleado Inactivo' : 'Generar Solicitud'}
                     </Button>
                   </div>
                 </form>
