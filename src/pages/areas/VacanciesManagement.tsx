@@ -220,7 +220,7 @@ export const VacanciesManagement = () => {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Nueva posición</DialogTitle>
+                <DialogTitle>Nueva vacante</DialogTitle>
                 <DialogDescription>
                   Define los datos básicos de la vacante.
                 </DialogDescription>
