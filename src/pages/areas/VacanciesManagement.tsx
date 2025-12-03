@@ -33,6 +33,7 @@ export const VacanciesManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
+  const [editingVacancy, setEditingVacancy] = useState<Vacancy | null>(null);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -84,17 +85,43 @@ export const VacanciesManagement = () => {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from('recruitment_positions').insert(data);
+      if (editingVacancy) {
+        const { error } = await supabase
+          .from('recruitment_positions')
+          .update(data)
+          .eq('id', editingVacancy.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('recruitment_positions').insert(data);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recruitment-positions-vacancies'] });
+      toast.success(editingVacancy ? 'Vacante actualizada exitosamente' : 'Vacante creada exitosamente');
+      setDialogOpen(false);
+      resetForm();
+      setEditingVacancy(null);
+    },
+    onError: () => {
+      toast.error(editingVacancy ? 'Error al actualizar la vacante' : 'Error al crear la vacante');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('recruitment_positions')
+        .delete()
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recruitment-positions-vacancies'] });
-      toast.success('Vacante creada exitosamente');
-      setDialogOpen(false);
-      resetForm();
+      toast.success('Vacante eliminada exitosamente');
     },
     onError: () => {
-      toast.error('Error al crear la vacante');
+      toast.error('Error al eliminar la vacante');
     },
   });
 
@@ -129,6 +156,7 @@ export const VacanciesManagement = () => {
       work_end_time: '16:00',
       seniority: 'junior',
     });
+    setEditingVacancy(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -149,6 +177,27 @@ export const VacanciesManagement = () => {
   const openApplyDialog = (vacancy: Vacancy) => {
     setSelectedVacancy(vacancy);
     setApplyDialogOpen(true);
+  };
+
+  const openEditDialog = (vacancy: Vacancy) => {
+    setEditingVacancy(vacancy);
+    setFormData({
+      title: vacancy.title,
+      description: vacancy.description || '',
+      status: vacancy.status,
+      department: vacancy.department || '',
+      location: vacancy.location || '',
+      work_start_time: vacancy.work_start_time || '08:00',
+      work_end_time: vacancy.work_end_time || '16:00',
+      seniority: vacancy.seniority || 'junior',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (vacancy: Vacancy) => {
+    if (window.confirm(`¿Estás seguro de eliminar la vacante "${vacancy.title}"?`)) {
+      deleteMutation.mutate(vacancy.id);
+    }
   };
 
   const filteredVacancies = vacancies.filter((vacancy) =>
@@ -188,10 +237,16 @@ export const VacanciesManagement = () => {
 
   const actions = (vacancy: Vacancy) => (
     <div className="flex gap-2">
-      <Button variant="outline" size="sm" onClick={() => openApplyDialog(vacancy)}>
-        <Send className="mr-2 h-4 w-4" />
-        Postular
-      </Button>
+      {canManageUsers && (
+        <>
+          <Button variant="ghost" size="icon" onClick={() => openEditDialog(vacancy)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(vacancy)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </>
+      )}
     </div>
   );
 
@@ -220,7 +275,7 @@ export const VacanciesManagement = () => {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Nueva vacante</DialogTitle>
+                <DialogTitle>{editingVacancy ? 'Editar posición' : 'Nueva posición'}</DialogTitle>
                 <DialogDescription>
                   Define los datos básicos de la vacante.
                 </DialogDescription>
@@ -321,10 +376,10 @@ export const VacanciesManagement = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                     Cancelar
                   </Button>
-                  <Button type="submit">Crear Vacante</Button>
+                  <Button type="submit">{editingVacancy ? 'Actualizar Vacante' : 'Crear Vacante'}</Button>
                 </div>
               </form>
             </DialogContent>
