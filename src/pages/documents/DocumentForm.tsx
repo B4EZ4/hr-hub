@@ -164,6 +164,23 @@ export default function DocumentForm() {
         throw new Error('Debe seleccionar un archivo');
       }
 
+      // Validate: no duplicate title for the same employee
+      const titleTrim = data.title.trim();
+      const { data: existing, error: existingErr } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('title', titleTrim)
+        .eq('employee_id', data.employee_id)
+        .limit(1);
+      if (existingErr) throw existingErr;
+      if (existing && (existing as { id: string }[]).length > 0) {
+        const existingId = (existing as { id: string }[])[0].id;
+        // If editing, allow if the existing document is the one we're editing
+        if (!isEditing || (isEditing && existingId !== id)) {
+          throw new Error('Ya existe un documento con ese título para el empleado seleccionado');
+        }
+      }
+
       // Asegurar que el usuario esté autenticado antes de intentar insertar
       if (!user || !user.id) {
         throw new Error('Usuario no autenticado. Inicia sesión antes de subir documentos.');
@@ -197,7 +214,8 @@ export default function DocumentForm() {
           title: data.title,
           description: data.description || null,
           category: data.category,
-          employee_id: data.employee_id,
+          // Prevent changing employee when editing — keep original document employee_id
+          employee_id: (document?.employee_id as string) || data.employee_id,
           is_public: data.is_public,
           tags: tagsArray,
         };
@@ -399,7 +417,7 @@ export default function DocumentForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Empleado *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select disabled={isEditing} onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona un empleado" />
@@ -414,7 +432,7 @@ export default function DocumentForm() {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        Empleado al que pertenece este documento
+                        Empleado al que pertenece este documento{isEditing ? ' — no se puede cambiar al actualizar' : ''}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

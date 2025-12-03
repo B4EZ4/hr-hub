@@ -33,7 +33,6 @@ export function FileUploader({
     const maxSizeBytes = maxSize * 1024 * 1024;
     if (f.size > maxSizeBytes) return `El archivo excede el tamaño máximo de ${maxSize}MB`;
 
-    // Accept only PDF files (by MIME type or .pdf extension as fallback)
     const isPdfMime = f.type === 'application/pdf';
     const nameLower = f.name.toLowerCase();
     const hasPdfExt = nameLower.endsWith('.pdf');
