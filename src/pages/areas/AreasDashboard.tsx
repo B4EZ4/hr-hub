@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckSquare, FileText, TrendingUp, Users, Briefcase, Bell, StickyNote } from 'lucide-react';
+import { Calendar, FileText, TrendingUp, Users, Briefcase, Bell, StickyNote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -21,18 +21,16 @@ export const AreasDashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['areas-dashboard-stats'],
     queryFn: async () => {
-      const [areasRes, vacanciesRes, promotionsRes, activitiesRes] = await Promise.all([
+      const [areasRes, vacanciesRes, promotionsRes] = await Promise.all([
         (supabase as any).from('positions').select('*', { count: 'exact' }).eq('status', 'activo'),
         supabase.from('recruitment_positions').select('*', { count: 'exact' }).eq('status', 'abierta'),
         (supabase as any).from('promotions').select('*', { count: 'exact' }).eq('status', 'propuesta'),
-        (supabase as any).from('employee_activities').select('*', { count: 'exact' }).eq('status', 'pendiente'),
       ]);
 
       return {
         activePositions: areasRes.count || 0,
         openVacancies: vacanciesRes.count || 0,
         pendingPromotions: promotionsRes.count || 0,
-        pendingActivities: activitiesRes.count || 0,
       };
     },
   });
@@ -68,7 +66,6 @@ export const AreasDashboard = () => {
   const chartData = [
     { name: 'Vacantes', valor: stats?.openVacancies || 0, fill: 'hsl(var(--chart-1))' },
     { name: 'Promociones', valor: stats?.pendingPromotions || 0, fill: 'hsl(var(--chart-2))' },
-    { name: 'Actividades', valor: stats?.pendingActivities || 0, fill: 'hsl(var(--chart-3))' },
     { name: 'Posiciones', valor: stats?.activePositions || 0, fill: 'hsl(var(--chart-4))' },
   ];
 
@@ -239,17 +236,6 @@ export const AreasDashboard = () => {
             <p className="text-xs text-muted-foreground mt-1">En revisión</p>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-chart-3/10 to-chart-3/5">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Actividades Pendientes</CardTitle>
-            <CheckSquare className="w-5 h-5 text-chart-3" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.pendingActivities}</div>
-            <p className="text-xs text-muted-foreground mt-1">Tareas asignadas</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Acciones Rápidas */}
@@ -302,15 +288,6 @@ export const AreasDashboard = () => {
                 <div className="text-left">
                   <div className="font-semibold">Capacitación</div>
                   <div className="text-xs text-muted-foreground">Programas de formación</div>
-                </div>
-              </Button>
-            </Link>
-            <Link to="/areas/actividades">
-              <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-chart-5/5">
-                <CheckSquare className="mr-3 h-5 w-5 text-chart-5" />
-                <div className="text-left">
-                  <div className="font-semibold">Actividades</div>
-                  <div className="text-xs text-muted-foreground">Tareas y seguimiento</div>
                 </div>
               </Button>
             </Link>

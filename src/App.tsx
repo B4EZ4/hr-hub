@@ -68,7 +68,6 @@ import { AreasManagement } from "./pages/areas/AreasManagement";
 import { VacanciesManagement } from "./pages/areas/VacanciesManagement";
 import { PromotionsManagement } from "./pages/areas/PromotionsManagement";
 import { PersonnelHub } from "./pages/areas/PersonnelHub";
-import { PersonnelActivities } from "./pages/areas/PersonnelActivities";
 import BiometricAccessPoint from "./pages/BiometricAccessPoint";
 
 const queryClient = new QueryClient();
@@ -131,7 +130,7 @@ const App = () => (
 
             {/* Vacaciones - ACTUALIZADO AQUI */}
             <Route path="/vacaciones" element={<ProtectedRoute><VacationsDashboard /></ProtectedRoute>} />
-            <Route path="/vacaciones/solicitar" element={<ProtectedRoute><VacationRequest /></ProtectedRoute>} />
+            <Route path="/vacaciones/solicitar" element={<ProtectedRoute><VacationRequest onBack={() => window.history.back()} /></ProtectedRoute>} />
             <Route path="/vacaciones/historial" element={<ProtectedRoute><VacationsList /></ProtectedRoute>} />
             <Route path="/vacaciones/calendario" element={<ProtectedRoute><VacationCalendar /></ProtectedRoute>} />
             <Route path="/vacaciones/buscar" element={<ProtectedRoute><EmployeeVacationSearch /></ProtectedRoute>} />
@@ -213,7 +212,6 @@ const App = () => (
             <Route path="/areas/personal" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
             <Route path="/areas/capacitacion" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
             <Route path="/areas/evaluaciones" element={<ProtectedRoute><PersonnelHub /></ProtectedRoute>} />
-            <Route path="/areas/actividades" element={<ProtectedRoute><PersonnelActivities /></ProtectedRoute>} />
 
             {/* Punto de Acceso Biométrico */}
             <Route path="/punto-acceso" element={<BiometricAccessPoint />} />
