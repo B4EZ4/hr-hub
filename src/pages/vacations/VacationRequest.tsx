@@ -30,24 +30,24 @@ const vacationSchema = z.object({
   message: 'La fecha de fin debe ser posterior a la fecha de inicio',
   path: ['end_date'],
 })
-// ➡️ INICIO DEL NUEVO BLOQUE DE VALIDACIÓN DE ANTELACIÓN ⬅️
-.refine((data) => {
-  const start = new Date(data.start_date);
-  // Normalizar la fecha de inicio para comparar solo días, no horas.
-  start.setHours(0, 0, 0, 0);
+  // ➡️ INICIO DEL NUEVO BLOQUE DE VALIDACIÓN DE ANTELACIÓN ⬅️
+  .refine((data) => {
+    const start = new Date(data.start_date);
+    // Normalizar la fecha de inicio para comparar solo días, no horas.
+    start.setHours(0, 0, 0, 0);
 
-  // Calcular la fecha mínima permitida (Hoy + 14 días)
-  const minStartDate = new Date();
-  minStartDate.setDate(minStartDate.getDate() + 14);
-  // Normalizar la fecha mínima
-  minStartDate.setHours(0, 0, 0, 0);
-  
-  // La fecha de inicio debe ser mayor o igual que la fecha mínima de solicitud.
-  return start >= minStartDate;
-}, {
-  message: 'La fecha de inicio debe ser con al menos 14 días de antelación.',
-  path: ['start_date'],
-});
+    // Calcular la fecha mínima permitida (Hoy + 14 días)
+    const minStartDate = new Date();
+    minStartDate.setDate(minStartDate.getDate() + 14);
+    // Normalizar la fecha mínima
+    minStartDate.setHours(0, 0, 0, 0);
+
+    // La fecha de inicio debe ser mayor o igual que la fecha mínima de solicitud.
+    return start >= minStartDate;
+  }, {
+    message: 'La fecha de inicio debe ser con al menos 14 días de antelación.',
+    path: ['start_date'],
+  });
 // ➡️ FIN DEL NUEVO BLOQUE DE VALIDACIÓN DE ANTELACIÓN ⬅️
 
 type VacationFormData = z.infer<typeof vacationSchema>;
@@ -60,6 +60,7 @@ type Profile = {
   full_name: string; // Columna real en tu DB
   email: string;
   department?: string;
+  status?: string;
 };
 
 // 4. Componente Principal
@@ -87,7 +88,7 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
       if (error) {
         console.error("Error buscando perfil:", error);
         throw error;
-      } 
+      }
       return data as Profile[];
     },
     enabled: searchTerm.length >= 2 && isSearching,
@@ -99,16 +100,16 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
     queryFn: async () => {
       if (!selectedUser) return null;
       const currentYear = new Date().getFullYear();
-      
+
       const { data, error } = await (supabase as any)
         .from('vacation_balances')
         .select('*')
         .eq('user_id', selectedUser.user_id) // Relación correcta con user_id
         .eq('year', currentYear)
-        .single();
+        .maybeSingle();
 
       // Si no hay balance, devolvemos uno por defecto pero limpio
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
       // Nota: Verifica si tu tabla usa 'available_days' o 'remaining_days'. 
       // En tu SQL anterior era 'available_days', así que mapeamos eso.
       return data || { total_days: 12, used_days: 0, available_days: 12 };
@@ -133,10 +134,12 @@ const VacationRequest: React.FC<VacationRequestProps> = ({ onBack }) => {
     return diffDays;
   };
 
-const mutation = useMutation({
+  const mutation = useMutation({
     mutationFn: async (data: VacationFormData) => {
       if (!selectedUser) throw new Error('Debes seleccionar un usuario primero');
-
+if (selectedUser.status === 'inactivo') {
+        throw new Error(`No se puede generar la solicitud: El colaborador ${selectedUser.full_name} se encuentra INACTIVO (Baja).`);
+      }
       // 1. Cálculos previos
       const days = calculateDays(data.start_date, data.end_date);
       const currentAvailable = balance?.available_days ?? 12;
@@ -157,39 +160,39 @@ const mutation = useMutation({
           employee_note: data.reason,
           status: 'pending',
         }]);
-if (requestError) throw requestError;
-      
+      if (requestError) throw requestError;
+
     },
     onSuccess: () => {
       // Al invalidar, React Query volverá a pedir los datos y la UI se actualizará sola
       queryClient.invalidateQueries({ queryKey: ['vacation-requests'] });
       queryClient.invalidateQueries({ queryKey: ['vacation-balances'] });
-      
-   toast.success(`Solicitud generada como pendiente para ${selectedUser?.full_name}`);
+
+      toast.success(`Solicitud generada como pendiente para ${selectedUser?.full_name}`);
       form.reset();
-      onBack(); 
+      onBack();
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al enviar solicitud');
     },
   });
-// --- MUTACIÓN PARA APROBACIÓN (ESTE BLOQUE DEBE ESTAR AL MISMO NIVEL) ---
-// NOTA: Esta función DEBE ser llamada desde la vista de Administración/RRHH. 
-// Asume que el Trigger de PostgreSQL se encargará del descuento del saldo.
-const approvalMutation = useMutation({
+  // --- MUTACIÓN PARA APROBACIÓN (ESTE BLOQUE DEBE ESTAR AL MISMO NIVEL) ---
+  // NOTA: Esta función DEBE ser llamada desde la vista de Administración/RRHH. 
+  // Asume que el Trigger de PostgreSQL se encargará del descuento del saldo.
+  const approvalMutation = useMutation({
     mutationFn: async ({ requestId, daysRequested, userId }: { requestId: string, daysRequested: number, userId: string }) => {
       // 1. Actualizar el estado de la solicitud a 'approved'
       const { error } = await (supabase as any)
         .from('vacation_requests')
         .update({ status: 'approved', approval_date: new Date().toISOString() })
-        .eq('id', requestId); 
-      
+        .eq('id', requestId);
+
       if (error) throw error;
-      
+
       // Si NO usas un Trigger SQL, aquí iría el código para actualizar la tabla 'vacation_balances'
       // Pero si usas el Trigger, Supabase lo hace automáticamente después de este update.
     },
-     onSuccess: () => {
+    onSuccess: () => {
       // Recargar la lista de solicitudes y el balance del usuario
       queryClient.invalidateQueries({ queryKey: ['vacation-requests'] });
       queryClient.invalidateQueries({ queryKey: ['vacation-balances'] });
@@ -198,7 +201,7 @@ const approvalMutation = useMutation({
     onError: (error: any) => {
       toast.error(error.message || 'Error al aprobar solicitud');
     },
-});
+  });
   const handleSelectUser = (user: Profile) => {
     setSelectedUser(user);
     setSearchTerm('');
@@ -209,7 +212,7 @@ const approvalMutation = useMutation({
   const startDate = form.watch('start_date');
   const endDate = form.watch('end_date');
   const requestedDays = startDate && endDate ? calculateDays(startDate, endDate) : 0;
-  
+
   // Helper para mostrar días disponibles seguro
   const diasDisponibles = balance?.available_days ?? 12;
 
@@ -283,9 +286,9 @@ const approvalMutation = useMutation({
             )}
             {/* Mensaje si no hay resultados */}
             {isSearching && searchTerm.length >= 2 && searchResults?.length === 0 && (
-               <div className="absolute z-10 w-full mt-1 p-3 bg-white border rounded-md shadow-lg text-sm text-muted-foreground">
-                 No se encontraron colaboradores.
-               </div>
+              <div className="absolute z-10 w-full mt-1 p-3 bg-white border rounded-md shadow-lg text-sm text-muted-foreground">
+                No se encontraron colaboradores.
+              </div>
             )}
           </div>
         </CardContent>
@@ -423,11 +426,17 @@ const approvalMutation = useMutation({
 
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={onBack}>
-                        Cancelar
+                      Cancelar
                     </Button>
-                    <Button type="submit" disabled={mutation.isPending || (requestedDays > diasDisponibles)}>
-                        {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Generar Solicitud
+                    <Button 
+                      type="submit" 
+                      // Se deshabilita si está cargando, si excede días O si el usuario está inactivo
+                      disabled={mutation.isPending || (requestedDays > diasDisponibles) || selectedUser?.status === 'inactivo'}
+                      // Opcional: Cambiar estilo si está inactivo para que sea evidente
+                      className={selectedUser?.status === 'inactivo' ? "opacity-50 cursor-not-allowed bg-red-500 hover:bg-red-600 text-white" : ""}
+                    >
+                      {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {selectedUser?.status === 'inactivo' ? 'Empleado Inactivo' : 'Generar Solicitud'}
                     </Button>
                   </div>
                 </form>

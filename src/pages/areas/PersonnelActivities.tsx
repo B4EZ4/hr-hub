@@ -2,19 +2,17 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/shared/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Calendar as CalendarIcon, Edit, FileText } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useRoles } from '@/hooks/useRoles';
 
 interface Activity {
   id: string;
@@ -22,30 +20,26 @@ interface Activity {
   title: string;
   description: string | null;
   status: string;
-  priority: string;
   start_date: string | null;
   due_date: string | null;
-  completion_date: string | null;
-  progress_percentage: number;
-  comments: string | null;
+  assigned_by: string | null;
+  profiles?: { full_name: string };
 }
 
 export const PersonnelActivities = () => {
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
-  const [editData, setEditData] = useState({
-    status: '',
-    priority: '',
-    progress_percentage: 0,
-    start_date: null as Date | null,
-    due_date: null as Date | null,
-    completion_date: null as Date | null,
-    comments: '',
+  const [formData, setFormData] = useState({
+    title: '',
+    employee_id: '',
+    start_date: '',
+    due_date: '',
+    status: 'Planeación',
   });
 
   const queryClient = useQueryClient();
+  const { canManageUsers } = useRoles();
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: ['employee-activities'],
@@ -54,7 +48,7 @@ export const PersonnelActivities = () => {
         .from('employee_activities')
         .select(`
           *,
-          employee:employee_id (full_name, position)
+          profiles!employee_activities_employee_id_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
 
@@ -63,140 +57,151 @@ export const PersonnelActivities = () => {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof editData }) => {
-      const payload = {
-        ...data,
-        start_date: data.start_date ? format(data.start_date, 'yyyy-MM-dd') : null,
-        due_date: data.due_date ? format(data.due_date, 'yyyy-MM-dd') : null,
-        completion_date: data.completion_date ? format(data.completion_date, 'yyyy-MM-dd') : null,
-      };
-      const { error } = await (supabase as any).from('employee_activities').update(payload).eq('id', id);
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .order('full_name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      if (editingActivity) {
+        const { error } = await (supabase as any)
+          .from('employee_activities')
+          .update(data)
+          .eq('id', editingActivity.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any).from('employee_activities').insert(data);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-activities'] });
+      toast.success(editingActivity ? 'Actividad actualizada exitosamente' : 'Actividad creada exitosamente');
+      setDialogOpen(false);
+      resetForm();
+      setEditingActivity(null);
+    },
+    onError: () => {
+      toast.error(editingActivity ? 'Error al actualizar la actividad' : 'Error al crear la actividad');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('employee_activities')
+        .delete()
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee-activities'] });
-      toast.success('Actividad actualizada exitosamente');
-      setEditDialogOpen(false);
+      toast.success('Actividad eliminada exitosamente');
     },
     onError: () => {
-      toast.error('Error al actualizar la actividad');
+      toast.error('Error al eliminar la actividad');
     },
   });
 
-  const openDetailDialog = (activity: Activity) => {
-    setSelectedActivity(activity);
-    setDetailDialogOpen(true);
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      employee_id: '',
+      start_date: '',
+      due_date: '',
+      status: 'Planeación',
+    });
+    setEditingActivity(null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(formData);
   };
 
   const openEditDialog = (activity: Activity) => {
-    setSelectedActivity(activity);
-    setEditData({
+    setEditingActivity(activity);
+    setFormData({
+      title: activity.title,
+      employee_id: activity.employee_id,
+      start_date: activity.start_date || '',
+      due_date: activity.due_date || '',
       status: activity.status,
-      priority: activity.priority,
-      progress_percentage: activity.progress_percentage || 0,
-      start_date: activity.start_date ? new Date(activity.start_date) : null,
-      due_date: activity.due_date ? new Date(activity.due_date) : null,
-      completion_date: activity.completion_date ? new Date(activity.completion_date) : null,
-      comments: activity.comments || '',
     });
-    setEditDialogOpen(true);
+    setDialogOpen(true);
   };
 
-  const handleUpdate = () => {
-    if (selectedActivity) {
-      updateMutation.mutate({ id: selectedActivity.id, data: editData });
+  const handleDelete = (activity: Activity) => {
+    if (window.confirm(`¿Estás seguro de eliminar la actividad "${activity.title}"?`)) {
+      deleteMutation.mutate(activity.id);
     }
   };
 
-  const statusLabels: Record<string, string> = {
-    pendiente: 'Pendiente',
-    en_progreso: 'En Progreso',
-    completado: 'Completado',
-    cancelado: 'Cancelado',
-  };
-
-  const priorityLabels: Record<string, string> = {
-    baja: 'Baja',
-    normal: 'Normal',
-    alta: 'Alta',
-    urgente: 'Urgente',
+  const getStatusVariant = (status: string): 'default' | 'secondary' | 'outline' => {
+    const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
+      'Planeación': 'outline',
+      'Convocatoria': 'outline',
+      'Ejecución': 'default',
+      'Evaluación': 'secondary',
+      'Cierre': 'secondary',
+      'Completada': 'default',
+      'En Proceso': 'default',
+    };
+    return variants[status] || 'outline';
   };
 
   const columns = [
     {
-      header: 'Título',
-      accessorKey: 'title',
+      header: 'NOMBRE DE LA TAREA',
+      accessorKey: 'title' as keyof Activity,
     },
     {
-      header: 'Empleado',
-      accessorKey: 'employee',
+      header: 'ENCARGADO',
+      accessorKey: 'profiles' as keyof Activity,
       cell: (value: any) => value?.full_name || 'Sin asignar',
     },
     {
-      header: 'Estado',
-      accessorKey: 'status',
-      cell: (value: string) => {
-        const variants: Record<string, 'default' | 'destructive' | 'outline' | 'secondary'> = {
-          pendiente: 'outline',
-          en_progreso: 'default',
-          completado: 'default',
-          cancelado: 'destructive',
-        };
-        return (
-          <Badge variant={variants[value] || 'outline'}>
-            {statusLabels[value] || value}
-          </Badge>
-        );
-      },
-    },
-    {
-      header: 'Prioridad',
-      accessorKey: 'priority',
-      cell: (value: string) => {
-        const variants: Record<string, 'default' | 'destructive' | 'outline' | 'secondary'> = {
-          baja: 'secondary',
-          normal: 'outline',
-          alta: 'default',
-          urgente: 'destructive',
-        };
-        return (
-          <Badge variant={variants[value] || 'outline'}>
-            {priorityLabels[value] || value}
-          </Badge>
-        );
-      },
-    },
-    {
-      header: 'Fecha Vencimiento',
-      accessorKey: 'due_date',
+      header: 'FECHA INICIO',
+      accessorKey: 'start_date' as keyof Activity,
       cell: (value: string | null) => value ? format(new Date(value), 'dd/MM/yyyy', { locale: es }) : '-',
     },
     {
-      header: 'Progreso',
-      accessorKey: 'progress_percentage',
-      cell: (value: number) => `${value || 0}%`,
+      header: 'FECHA FIN',
+      accessorKey: 'due_date' as keyof Activity,
+      cell: (value: string | null) => value ? format(new Date(value), 'dd/MM/yyyy', { locale: es }) : '-',
+    },
+    {
+      header: 'ESTADO',
+      accessorKey: 'status' as keyof Activity,
+      cell: (value: string) => (
+        <Badge variant={getStatusVariant(value)}>
+          {value}
+        </Badge>
+      ),
     },
   ];
 
   const actions = (activity: Activity) => (
     <div className="flex gap-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => openDetailDialog(activity)}
-      >
-        <FileText className="mr-2 h-4 w-4" />
-        Ver
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => openEditDialog(activity)}
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Editar
-      </Button>
+      {canManageUsers && (
+        <>
+          <Button variant="ghost" size="icon" onClick={() => openEditDialog(activity)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(activity)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </>
+      )}
     </div>
   );
 
@@ -210,204 +215,104 @@ export const PersonnelActivities = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Actividades</h1>
-        <p className="text-muted-foreground mt-2">
-          Gestión y seguimiento de actividades asignadas a empleados
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Actividades</h1>
+          <p className="text-muted-foreground mt-2">
+            Gestión y seguimiento de actividades asignadas a empleados
+          </p>
+        </div>
+        {canManageUsers && (
+          <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva Actividad
+          </Button>
+        )}
       </div>
 
       <DataTable columns={columns} data={activities} actions={actions} />
 
-      {/* Detail Dialog */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      {/* Form Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalle de Actividad</DialogTitle>
+            <DialogTitle>{editingActivity ? 'Editar Actividad' : 'Nueva Actividad'}</DialogTitle>
             <DialogDescription>
-              Información completa de la actividad seleccionada
+              Complete los datos de la actividad
             </DialogDescription>
           </DialogHeader>
-          {selectedActivity && (
-            <div className="space-y-4">
-              <div>
-                <Label>Título</Label>
-                <p className="text-lg font-medium">{selectedActivity.title}</p>
-              </div>
-              <div>
-                <Label>Descripción</Label>
-                <p className="text-sm">{selectedActivity.description || 'Sin descripción'}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Estado</Label>
-                  <div className="mt-1">
-                    <Badge variant={selectedActivity.status === 'completado' ? 'default' : 'outline'}>
-                      {statusLabels[selectedActivity.status]}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label>Prioridad</Label>
-                  <div className="mt-1">
-                    <Badge variant={selectedActivity.priority === 'urgente' ? 'destructive' : 'outline'}>
-                      {priorityLabels[selectedActivity.priority]}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label>Progreso</Label>
-                  <p className="text-lg font-semibold">{selectedActivity.progress_percentage || 0}%</p>
-                </div>
-                <div>
-                  <Label>Fecha Inicio</Label>
-                  <p>{selectedActivity.start_date ? format(new Date(selectedActivity.start_date), 'dd/MM/yyyy', { locale: es }) : '-'}</p>
-                </div>
-                <div>
-                  <Label>Fecha Vencimiento</Label>
-                  <p>{selectedActivity.due_date ? format(new Date(selectedActivity.due_date), 'dd/MM/yyyy', { locale: es }) : '-'}</p>
-                </div>
-                <div>
-                  <Label>Fecha Completado</Label>
-                  <p>{selectedActivity.completion_date ? format(new Date(selectedActivity.completion_date), 'dd/MM/yyyy', { locale: es }) : '-'}</p>
-                </div>
-              </div>
-              {selectedActivity.comments && (
-                <div>
-                  <Label>Comentarios</Label>
-                  <p className="text-sm whitespace-pre-wrap">{selectedActivity.comments}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Editar Actividad</DialogTitle>
-            <DialogDescription>
-              Actualiza el estado y progreso de la actividad
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Estado</Label>
-                <Select value={editData.status} onValueChange={(value) => setEditData({ ...editData, status: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="en_progreso">En Progreso</SelectItem>
-                    <SelectItem value="completado">Completado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Prioridad</Label>
-                <Select value={editData.priority} onValueChange={(value) => setEditData({ ...editData, priority: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="baja">Baja</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="urgente">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>Progreso (%)</Label>
-              <Select 
-                value={editData.progress_percentage.toString()} 
-                onValueChange={(value) => setEditData({ ...editData, progress_percentage: parseInt(value) })}
-              >
+              <Label htmlFor="title">Nombre de la Tarea:</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Revisión de protocolos"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="employee_id">Encargado:</Label>
+              <Select value={formData.employee_id} onValueChange={(value) => setFormData({ ...formData, employee_id: value })} required>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Selecciona encargado" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(val => (
-                    <SelectItem key={val} value={val.toString()}>{val}%</SelectItem>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.user_id} value={employee.user_id}>{employee.full_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Fecha Inicio</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editData.start_date && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {editData.start_date ? format(editData.start_date, 'dd/MM/yy', { locale: es }) : 'Seleccionar'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={editData.start_date || undefined} onSelect={(date) => setEditData({ ...editData, start_date: date || null })} className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label>Fecha Vencimiento</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editData.due_date && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {editData.due_date ? format(editData.due_date, 'dd/MM/yy', { locale: es }) : 'Seleccionar'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={editData.due_date || undefined} onSelect={(date) => setEditData({ ...editData, due_date: date || null })} className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label>Fecha Completado</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editData.completion_date && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {editData.completion_date ? format(editData.completion_date, 'dd/MM/yy', { locale: es }) : 'Seleccionar'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={editData.completion_date || undefined} onSelect={(date) => setEditData({ ...editData, completion_date: date || null })} className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
             <div>
-              <Label>Comentarios</Label>
-              <Textarea
-                value={editData.comments}
-                onChange={(e) => setEditData({ ...editData, comments: e.target.value })}
-                rows={4}
-                placeholder="Añade comentarios sobre el progreso..."
+              <Label htmlFor="start_date">Fecha Inicio:</Label>
+              <Input
+                id="start_date"
+                type="date"
+                value={formData.start_date}
+                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                required
               />
             </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <div>
+              <Label htmlFor="due_date">Fecha Fin:</Label>
+              <Input
+                id="due_date"
+                type="date"
+                value={formData.due_date}
+                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="status">Estado:</Label>
+              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Planeación">Planeación</SelectItem>
+                  <SelectItem value="Convocatoria">Convocatoria</SelectItem>
+                  <SelectItem value="Ejecución">Ejecución</SelectItem>
+                  <SelectItem value="Evaluación">Evaluación</SelectItem>
+                  <SelectItem value="Cierre">Cierre</SelectItem>
+                  <SelectItem value="Completada">Completada</SelectItem>
+                  <SelectItem value="En Proceso">En Proceso</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                 Cancelar
               </Button>
-              <Button onClick={handleUpdate}>
-                Guardar Cambios
-              </Button>
+              <Button type="submit">{editingActivity ? 'Guardar Cambios' : 'Crear Actividad'}</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
   );
 };
+
 
