@@ -269,7 +269,7 @@ export const AreasDashboard = () => {
                 </div>
               </Button>
             </Link>
-            <Link to="/reclutamiento/posiciones?status=abierta">
+            <Link to="/areas/vacantes">
               <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-chart-1/5">
                 <Briefcase className="mr-3 h-5 w-5 text-chart-1" />
                 <div className="text-left">
