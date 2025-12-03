@@ -129,7 +129,7 @@ export default function RecruitmentPositionsList() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Posiciones</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Posicioness</h1>
           <p className="text-muted-foreground">Vacantes vigentes y su estado</p>
         </div>
         <div className="flex flex-wrap gap-2">

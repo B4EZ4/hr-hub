@@ -4,301 +4,287 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/shared/DataTable';
-import { Plus, Pencil, Trash2, Search, Send } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useRoles } from '@/hooks/useRoles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Vacancy {
   id: string;
-  position_title: string;
-  description: string | null;
-  status: string;
-  priority: string;
-  created_at: string;
+  title: string;
+  description?: string | null;
+  department?: string;
+  location?: string;
+  seniority?: string;
+  status?: string;
+  work_start_time?: string;
+  work_end_time?: string;
+  created_at?: string;
 }
 
 export const VacanciesManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
 
-  const [formData, setFormData] = useState({
-    position_title: '',
-    description: '',
-    requirements: '',
+  const [formData, setFormData] = useState<Partial<Vacancy & { department?: string }>>({
+    title: '',
+    department: '',
+    location: '',
+    seniority: '',
     status: 'abierta',
-    priority: 'normal',
-    area_id: '',
-  });
-
-  const [applicationData, setApplicationData] = useState({
-    applicant_name: '',
-    applicant_email: '',
-    applicant_phone: '',
-    cover_letter: '',
+    description: '',
+    work_start_time: '',
+    work_end_time: '',
   });
 
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
 
   const { data: vacancies = [], isLoading } = useQuery({
-    queryKey: ['job-vacancies'],
+    queryKey: ['recruitment_positions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('job_vacancies')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('recruitment_positions').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data as Vacancy[];
     },
   });
 
   const { data: areas = [] } = useQuery({
     queryKey: ['areas-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('areas')
-        .select('id, name')
-        .eq('status', 'activo')
-        .order('name');
-
+      const { data, error } = await supabase.from('areas').select('id, name').eq('status', 'activo').order('name');
       if (error) throw error;
-      return data;
+      return data as { id: string; name: string }[];
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from('job_vacancies').insert(data);
+    mutationFn: async (payload: any) => {
+      const { error } = await supabase.from('recruitment_positions').insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job-vacancies'] });
-      toast.success('Vacante creada exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['recruitment_positions'] });
+      toast.success('Posición creada');
       setDialogOpen(false);
       resetForm();
     },
-    onError: () => {
-      toast.error('Error al crear la vacante');
+    onError: (err: any) => {
+      console.error(err);
+      toast.error(err?.message || 'Error al crear la posición');
     },
   });
 
-  const applyMutation = useMutation({
-    mutationFn: async (data: { vacancy_id: string } & typeof applicationData) => {
-      const { error } = await supabase.from('vacancy_applications').insert(data);
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { id, ...rest } = payload;
+      const { error } = await supabase.from('recruitment_positions').update(rest).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Postulación enviada exitosamente');
-      setApplyDialogOpen(false);
-      setApplicationData({
-        applicant_name: '',
-        applicant_email: '',
-        applicant_phone: '',
-        cover_letter: '',
-      });
+      queryClient.invalidateQueries({ queryKey: ['recruitment_positions'] });
+      toast.success('Posición actualizada');
+      setDialogOpen(false);
+      setSelectedVacancy(null);
+      resetForm();
     },
-    onError: () => {
-      toast.error('Error al enviar la postulación');
+    onError: (err: any) => {
+      console.error(err);
+      toast.error(err?.message || 'Error al actualizar la posición');
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      position_title: '',
-      description: '',
-      requirements: '',
-      status: 'abierta',
-      priority: 'normal',
-      area_id: '',
-    });
-  };
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('recruitment_positions').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recruitment_positions'] });
+      toast.success('Posición eliminada');
+    },
+    onError: (err: any) => {
+      console.error(err);
+      toast.error(err?.message || 'Error al eliminar la posición');
+    },
+  });
+
+  const resetForm = () => setFormData({ title: '', department: '', location: '', seniority: '', status: 'abierta', description: '', work_start_time: '', work_end_time: '' });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
-  };
-
-  const handleApply = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedVacancy) {
-      applyMutation.mutate({
-        vacancy_id: selectedVacancy.id,
-        ...applicationData,
-      });
+    if (selectedVacancy?.id) {
+      updateMutation.mutate({ ...(formData as any), id: selectedVacancy.id });
+    } else {
+      createMutation.mutate(formData);
     }
   };
 
-  const openApplyDialog = (vacancy: Vacancy) => {
-    setSelectedVacancy(vacancy);
-    setApplyDialogOpen(true);
+  const handleDelete = (id: string) => {
+    if (!confirm('¿Eliminar esta posición?')) return;
+    deleteMutation.mutate(id);
   };
 
-  const filteredVacancies = vacancies.filter((vacancy) =>
-    vacancy.position_title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const importantVacancies = filteredVacancies.filter(v => v.priority === 'alta' || v.priority === 'critica');
-
-  const statusLabels: Record<string, string> = {
-    abierta: 'Abierta',
-    en_proceso: 'En proceso',
-    cerrada: 'Cerrada',
-    cancelada: 'Cancelada',
+  const openEdit = (v: Vacancy) => {
+    setSelectedVacancy(v);
+    setFormData({
+      title: v.title,
+      department: v.department || '',
+      location: v.location || '',
+      seniority: v.seniority || '',
+      status: v.status || 'abierta',
+      description: v.description || '',
+      work_start_time: v.work_start_time || '',
+      work_end_time: v.work_end_time || '',
+    });
+    setDialogOpen(true);
   };
 
-  const priorityLabels: Record<string, string> = {
-    baja: 'Baja',
-    normal: 'Normal',
-    alta: 'Alta',
-    critica: 'Crítica',
+  const openView = (v: Vacancy) => {
+    setSelectedVacancy(v);
+    setViewOpen(true);
   };
+
+  const filtered = (vacancies as Vacancy[]).filter((v) => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (v.title || '').toLowerCase().includes(q) ||
+      (v.department || '').toLowerCase().includes(q) ||
+      (v.location || '').toLowerCase().includes(q)
+    );
+  });
 
   const columns = [
-    { header: 'Posición', accessorKey: 'position_title' as keyof Vacancy },
+    { header: 'Título', accessorKey: 'title' as keyof Vacancy },
+    { header: 'Departamento', accessorKey: 'department' as keyof Vacancy },
+    { header: 'Ubicación', accessorKey: 'location' as keyof Vacancy },
+    { header: 'Nivel', accessorKey: 'seniority' as keyof Vacancy },
+    {
+      header: 'Horario',
+      accessorKey: 'work_start_time' as keyof Vacancy,
+      cell: (value: any, row: Vacancy) => (value ? `${value} - ${row.work_end_time || ''}` : '-'),
+    },
     {
       header: 'Estado',
       accessorKey: 'status' as keyof Vacancy,
-      cell: (value: string) => (
-        <Badge variant={value === 'abierta' ? 'default' : 'secondary'}>
-          {statusLabels[value]}
-        </Badge>
-      ),
-    },
-    {
-      header: 'Prioridad',
-      accessorKey: 'priority' as keyof Vacancy,
-      cell: (value: string) => (
-        <Badge variant={value === 'alta' || value === 'critica' ? 'destructive' : 'outline'}>
-          {priorityLabels[value]}
-        </Badge>
-      ),
+      cell: (value: string) => <Badge variant={value === 'abierta' ? 'default' : 'secondary'}>{value}</Badge>,
     },
   ];
 
-  const actions = (vacancy: Vacancy) => (
+  const actions = (v: Vacancy) => (
     <div className="flex gap-2">
-      <Button variant="outline" size="sm" onClick={() => openApplyDialog(vacancy)}>
-        <Send className="mr-2 h-4 w-4" />
-        Postular
-      </Button>
+      <Button variant="ghost" size="sm" onClick={() => openView(v)}>Ver detalles</Button>
+      {canManageUsers && (
+        <>
+          <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => handleDelete(v.id)}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </>
+      )}
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Vacantes</h1>
-          <p className="text-muted-foreground mt-2">Gestión de posiciones disponibles</p>
+          <p className="text-muted-foreground mt-2">Vacantes vigentes y su estado</p>
         </div>
+
         {canManageUsers && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={resetForm}>
+              <Button onClick={() => { resetForm(); setSelectedVacancy(null); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                Crear Vacante
+                Nueva vacante
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+
+            <DialogContent className="max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Nueva Vacante</DialogTitle>
-                <DialogDescription>
-                  Completa los datos para publicar una nueva vacante
-                </DialogDescription>
+                <DialogTitle>{selectedVacancy ? 'Editar posición' : 'Nueva vacante'}</DialogTitle>
               </DialogHeader>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="position_title">Título de la Posición *</Label>
-                  <Input
-                    id="position_title"
-                    value={formData.position_title}
-                    onChange={(e) => setFormData({ ...formData, position_title: e.target.value })}
-                    required
-                  />
+                  <Label className="font-bold">Título *</Label>
+                  <Input value={formData.title || ''} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
                 </div>
-                <div>
-                  <Label htmlFor="area_id">Área *</Label>
-                  <Select value={formData.area_id} onValueChange={(value) => setFormData({ ...formData, area_id: value })} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un área" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {areas.map((area) => (
-                        <SelectItem key={area.id} value={area.id}>{area.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="description">Descripción</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="requirements">Requisitos</Label>
-                  <Textarea
-                    id="requirements"
-                    value={formData.requirements}
-                    onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="priority">Prioridad</Label>
-                    <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Label className="font-bold">Departamento</Label>
+                    <Select value={formData.department || ''} onValueChange={(v) => setFormData({ ...formData, department: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecciona departamento" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="baja">Baja</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="critica">Crítica</SelectItem>
+                        {areas.map((a: any) => (
+                          <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
-                    <Label htmlFor="status">Estado</Label>
-                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Label className="font-bold">Ubicación</Label>
+                    <Input value={formData.location || ''} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <Label className="font-bold">Hora inicio</Label>
+                    <Input type="time" value={formData.work_start_time || ''} onChange={(e) => setFormData({ ...formData, work_start_time: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <Label className="font-bold">Hora fin</Label>
+                    <Input type="time" value={formData.work_end_time || ''} onChange={(e) => setFormData({ ...formData, work_end_time: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <Label className="font-bold">Nivel</Label>
+                    <Input value={formData.seniority || ''} onChange={(e) => setFormData({ ...formData, seniority: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <Label className="font-bold">Estado</Label>
+                    <Select value={formData.status || 'abierta'} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="abierta">Abierta</SelectItem>
                         <SelectItem value="en_proceso">En proceso</SelectItem>
+                        <SelectItem value="pausada">Pausada</SelectItem>
                         <SelectItem value="cerrada">Cerrada</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+
+                <div>
+                  <Label className="font-bold">Descripción</Label>
+                  <Textarea value={formData.description || ''} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={4} />
+                </div>
+
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">Crear Vacante</Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                  <Button type="submit">Guardar</Button>
                 </div>
               </form>
             </DialogContent>
@@ -309,101 +295,41 @@ export const VacanciesManagement = () => {
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">Todas las Vacantes</TabsTrigger>
-          <TabsTrigger value="important">Vacantes Importantes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por posición..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+            <Input placeholder="Buscar por título, departamento o ubicación..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
           </div>
-          <DataTable columns={columns} data={filteredVacancies} actions={actions} />
-        </TabsContent>
 
-        <TabsContent value="important">
-          <div className="grid gap-4 md:grid-cols-2">
-            {importantVacancies.map((vacancy) => (
-              <Card key={vacancy.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle>{vacancy.position_title}</CardTitle>
-                    <Badge variant="destructive">{priorityLabels[vacancy.priority]}</Badge>
-                  </div>
-                  <CardDescription>{vacancy.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button onClick={() => openApplyDialog(vacancy)} className="w-full">
-                    <Send className="mr-2 h-4 w-4" />
-                    Postular Ahora
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <DataTable columns={columns} data={filtered as any} actions={actions} />
         </TabsContent>
       </Tabs>
 
-      {/* Apply Dialog */}
-      <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
+      {/* View dialog */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Postular a: {selectedVacancy?.position_title}</DialogTitle>
-            <DialogDescription>
-              Completa tus datos para enviar tu postulación
-            </DialogDescription>
+            <DialogTitle>Detalles</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleApply} className="space-y-4">
-            <div>
-              <Label htmlFor="applicant_name">Nombre Completo *</Label>
-              <Input
-                id="applicant_name"
-                value={applicationData.applicant_name}
-                onChange={(e) => setApplicationData({ ...applicationData, applicant_name: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="applicant_email">Correo Electrónico *</Label>
-              <Input
-                id="applicant_email"
-                type="email"
-                value={applicationData.applicant_email}
-                onChange={(e) => setApplicationData({ ...applicationData, applicant_email: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="applicant_phone">Teléfono</Label>
-              <Input
-                id="applicant_phone"
-                value={applicationData.applicant_phone}
-                onChange={(e) => setApplicationData({ ...applicationData, applicant_phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="cover_letter">Carta de Presentación</Label>
-              <Textarea
-                id="cover_letter"
-                value={applicationData.cover_letter}
-                onChange={(e) => setApplicationData({ ...applicationData, cover_letter: e.target.value })}
-                rows={4}
-                placeholder="Cuéntanos por qué eres el candidato ideal..."
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setApplyDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">Enviar Postulación</Button>
-            </div>
-          </form>
+          <div className="space-y-2">
+            <p><strong>Título:</strong> {selectedVacancy?.title}</p>
+            <p><strong>Departamento:</strong> {selectedVacancy?.department}</p>
+            <p><strong>Ubicación:</strong> {selectedVacancy?.location}</p>
+            <p><strong>Nivel:</strong> {selectedVacancy?.seniority}</p>
+            <p><strong>Horario:</strong> {selectedVacancy?.work_start_time ? `${selectedVacancy.work_start_time} - ${selectedVacancy.work_end_time || ''}` : '-'}</p>
+            <p><strong>Estado:</strong> {selectedVacancy?.status}</p>
+            <p><strong>Descripción:</strong></p>
+            <div className="whitespace-pre-wrap">{selectedVacancy?.description}</div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Cerrar</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 };
+
+export default VacanciesManagement;
