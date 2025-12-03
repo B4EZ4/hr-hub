@@ -46,12 +46,7 @@ const scheduleSchema = z.object({
     .optional()
     .refine((value) => !value || !isNaN(Number(value)), 'Debe ser un número')
     .transform((value) => (value ? Number(value) : undefined)),
-  location: z
-    .string()
-    .max(255)
-    .regex(/^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s,.-]*$/, 'Solo se permiten letras, números y puntuación básica')
-    .optional()
-    .or(z.literal('')),
+  location: z.string().max(255).optional().or(z.literal('')),
   meeting_url: z
     .string()
     .url('URL inválida')
@@ -175,8 +170,9 @@ export function ScheduleInterviewDialog({
     if (!hasApplications) return [];
     return applications.map((application) => ({
       id: application.id,
-      label: `${application.position?.title || 'Vacante sin título'} · ${application.current_stage || 'Etapa no definida'
-        } · ${application.status}`,
+      label: `${application.position?.title || 'Vacante sin título'} · ${
+        application.current_stage || 'Etapa no definida'
+      } · ${application.status}`,
     }));
   }, [applications, hasApplications]);
 
@@ -235,7 +231,7 @@ export function ScheduleInterviewDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="screening">Evaluación inicial</SelectItem>
+                        <SelectItem value="screening">Screening</SelectItem>
                         <SelectItem value="tecnica">Técnica</SelectItem>
                         <SelectItem value="cultural">Cultural</SelectItem>
                         <SelectItem value="oferta">Oferta</SelectItem>
@@ -268,7 +264,7 @@ export function ScheduleInterviewDialog({
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="absolute right-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 text-muted-foreground"
+                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground"
                           onClick={() => {
                             const target = dateInputRef.current;
                             if (target?.showPicker) target.showPicker();
@@ -294,18 +290,7 @@ export function ScheduleInterviewDialog({
                   <FormItem>
                     <FormLabel>Duración (minutos)</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="number"
-                        placeholder="60"
-                        min="1"
-                        max="999"
-                        disabled={mutation.isPending}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '');
-                          field.onChange(value);
-                        }}
-                      />
+                      <Input {...field} placeholder="60" disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -319,15 +304,7 @@ export function ScheduleInterviewDialog({
                   <FormItem>
                     <FormLabel>Ubicación</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Sala, oficina, etc."
-                        disabled={mutation.isPending}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s,.-]/g, '');
-                          field.onChange(value);
-                        }}
-                      />
+                      <Input {...field} placeholder="Sala, oficina, etc." disabled={mutation.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

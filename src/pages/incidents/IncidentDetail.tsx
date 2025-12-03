@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase-with-auth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,9 +24,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, AlertTriangle, MapPin, Calendar, User, Download } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, MapPin, Calendar, User } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 export default function IncidentDetail() {
   const { id } = useParams();
@@ -39,8 +38,6 @@ export default function IncidentDetail() {
   const [editStatus, setEditStatus] = useState('');
   const [editSeverity, setEditSeverity] = useState('');
   const [saving, setSaving] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incident', id],
@@ -232,42 +229,8 @@ export default function IncidentDetail() {
             <CardContent>
               <div className="grid gap-2 md:grid-cols-3">
                 {incident.file_paths.map((path: string, idx: number) => (
-                  <div key={idx} className="border rounded p-2 flex items-center justify-between">
-                    <p className="text-sm truncate mr-2">{path.split('/').pop()}</p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            // Bucket for incident files is `documents` with path stored in `path`
-                            const { data } = supabase.storage.from('documents').getPublicUrl(path);
-                            const publicUrl = (data as any)?.publicUrl;
-                            if (publicUrl) {
-                              window.open(publicUrl, '_blank');
-                              return;
-                            }
-
-                            // Fallback: try createSignedUrl for short-lived access
-                            const { data: signedData, error: signedError } = await supabase.storage
-                              .from('documents')
-                              .createSignedUrl(path, 60);
-                            if (signedError) throw signedError;
-                            if (signedData?.signedUrl) {
-                              window.open(signedData.signedUrl, '_blank');
-                              return;
-                            }
-
-                            toast.error('No se pudo obtener la URL del archivo');
-                          } catch (err: any) {
-                            console.error('Error opening file', err);
-                            toast.error(err?.message || 'Error al abrir el archivo');
-                          }
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
+                  <div key={idx} className="border rounded p-2">
+                    <p className="text-sm truncate">{path.split('/').pop()}</p>
                   </div>
                 ))}
               </div>
@@ -355,52 +318,6 @@ export default function IncidentDetail() {
               }}
             >
               {saving ? 'Guardando...' : 'Guardar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <div className="flex justify-end">
-        <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
-          Eliminar incidencia
-        </Button>
-      </div>
-
-      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar incidencia?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará la incidencia permanentemente. ¿Estás seguro?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                  try {
-                    setDeleting(true);
-                    const { error } = await (supabase as any).from('incidents').delete().eq('id', id);
-                    if (error) throw error;
-                    // Invalidate queries and wait for cache to update
-                    await queryClient.invalidateQueries({ queryKey: ['incidents'] });
-                    await queryClient.invalidateQueries({ queryKey: ['incident', id] });
-                    // Close dialog first so UI updates, then navigate
-                    setIsDeleteOpen(false);
-                    toast.success('Incidencia eliminada');
-                    // Small delay to ensure toast is visible before navigation
-                    setTimeout(() => navigate('/incidencias'), 250);
-                  } catch (e: any) {
-                    console.error('Error deleting incident', e);
-                    toast.error(e?.message || 'Error al eliminar incidencia');
-                    // keep dialog open so user can retry or cancel
-                  } finally {
-                    setDeleting(false);
-                  }
-                }}
-            >
-              {deleting ? 'Eliminando...' : 'Eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

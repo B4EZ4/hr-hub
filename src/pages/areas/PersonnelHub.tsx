@@ -22,7 +22,7 @@ export const PersonnelHub = () => {
         <AlertDescription>
           <strong>Bienvenido al módulo de Personal:</strong> Aquí puedes consultar y gestionar información detallada
           sobre el desarrollo profesional, evaluaciones de desempeño y actividades de los empleados. Usa las pestañas
-          para navegar entre las diferentes secciones. Las búsquedas ahora pueden iniciarse desde 1 dígito.
+          para navegar entre las diferentes secciones. La mayoría de búsquedas requieren el ID de empleado de 5 dígitos.
         </AlertDescription>
       </Alert>
 

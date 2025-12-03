@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { FileUploader } from '@/components/shared/FileUploader';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 const terminationSchema = z.object({
@@ -60,38 +59,6 @@ export default function TerminationForm() {
       observaciones: '',
     },
   });
-
-  const [uploadedPaths, setUploadedPaths] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
-
-  const handleFileSelected = async (file: File | null) => {
-    if (!file) return;
-    const employeeId = form.getValues('employee_id') || termination?.employee_id;
-    if (!employeeId) {
-      toast.error('Selecciona primero un empleado para asociar el documento.');
-      return;
-    }
-
-    try {
-      setUploading(true);
-      const bucketName = 'documents';
-      const prefix = 'despidos';
-      const safeFileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const storagePath = `${prefix}/${employeeId}/${safeFileName}`;
-
-      const { data, error } = await supabase.storage.from(bucketName).upload(storagePath, file);
-      if (error) throw error;
-
-      const storedPath = (data as any)?.path ?? storagePath;
-      setUploadedPaths((prev) => [...prev, storedPath]);
-      toast.success('Archivo subido correctamente');
-    } catch (err: any) {
-      console.error('Error uploading termination file', err);
-      toast.error(err?.message || 'Error al subir el archivo');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   // Cargar empleados
   const { data: employees } = useQuery({
@@ -169,27 +136,6 @@ export default function TerminationForm() {
           .update(payload)
           .eq('id', id);
         if (error) throw error;
-
-        // Si hay archivos subidos en la UI, insertarlos en despido_documentos
-        if (uploadedPaths.length > 0) {
-          try {
-            const docs = uploadedPaths.map((p) => ({
-              despido_id: id,
-              tipo_documento: 'general',
-              nombre_archivo: p.split('/').pop(),
-              file_path: p,
-              uploaded_by: userId,
-            }));
-            const { error: docsError } = await supabase.from('despido_documentos').insert(docs);
-            if (docsError) {
-              // Compensación: eliminar archivos subidos si falla la inserción
-              await supabase.storage.from('documents').remove(uploadedPaths);
-              throw docsError;
-            }
-          } catch (e) {
-            throw e;
-          }
-        }
       } else {
         const { data: newTermination, error } = await supabase
           .from('despidos')
@@ -205,27 +151,6 @@ export default function TerminationForm() {
           user_id: userId,
           new_values: payload,
         });
-
-        // Si hay archivos subidos en la UI antes de crear, insertarlos apuntando al nuevo despido
-        if (uploadedPaths.length > 0) {
-          try {
-            const docs = uploadedPaths.map((p) => ({
-              despido_id: newTermination.id,
-              tipo_documento: 'general',
-              nombre_archivo: p.split('/').pop(),
-              file_path: p,
-              uploaded_by: userId,
-            }));
-            const { error: docsError } = await supabase.from('despido_documentos').insert(docs);
-            if (docsError) {
-              // Compensación: eliminar archivos subidos si falla la inserción
-              await supabase.storage.from('documents').remove(uploadedPaths);
-              throw docsError;
-            }
-          } catch (e) {
-            throw e;
-          }
-        }
       }
     },
     onSuccess: () => {
@@ -423,27 +348,6 @@ export default function TerminationForm() {
                   </FormItem>
                 )}
               />
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Documentos</label>
-                <FileUploader
-                  bucket={'despidos'}
-                  accept={'image/*,.pdf'}
-                  maxSize={10}
-                  onFileSelected={handleFileSelected}
-                  onUploadError={(err) => toast.error(`Error: ${err}`)}
-                />
-
-                {uploadedPaths.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {uploadedPaths.map((p, i) => (
-                      <p key={i} className="text-sm text-muted-foreground">
-                        ✓ Archivo {i + 1}: {p.split('/').pop()}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               <div className="flex gap-4">
                 <Button

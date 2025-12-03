@@ -162,15 +162,6 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
 
   const mutation = useMutation({
     mutationFn: async (values: CandidateFormValues) => {
-      // Get current user from custom auth storage
-      const userStr = localStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
-      console.log('Current user for recruiter assignment (custom auth):', user);
-
-      if (!user?.id) {
-        console.warn('No user ID found for recruiter assignment');
-      }
-
       const payload = {
         full_name: values.full_name.trim(),
         email: values.email.trim().toLowerCase(),
@@ -185,7 +176,6 @@ export function NewCandidateDialog({ open, onOpenChange, onCreated }: NewCandida
         curp: sanitize(values.curp),
         nss: sanitize(values.nss),
         address: sanitize(values.address),
-        assigned_recruiter: user?.id,
       } satisfies Partial<RecruitmentCandidate> & Pick<RecruitmentCandidate, 'full_name' | 'email' | 'status'>;
 
       // Check for duplicate full_name

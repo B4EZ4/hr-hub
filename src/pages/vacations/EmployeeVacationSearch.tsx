@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Calendar, AlertTriangle, CheckCircle, User, Briefcase, Clock, ArrowLeft, Mail, AlertCircle } from 'lucide-react';
+import { Search, Calendar, AlertTriangle, CheckCircle, User, Briefcase, Clock, ArrowLeft, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -73,7 +73,7 @@ export default function EmployeeVacationSearch() {
         try {
           const { data } = await (supabase as any)
             .from('profiles')
-            .select('department, position, hire_date, employee_number, status')
+            .select('department, position, hire_date, employee_number')
             .eq('user_id', selectedUserId)
             .maybeSingle();
           return data;
@@ -145,11 +145,6 @@ export default function EmployeeVacationSearch() {
       const hireDate = new Date(startDateStr);
       const yearsOfService = Math.max(0, Math.floor((new Date().getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 365)));
 
-      // ➡️ INICIO DEL BLOQUE (FORZADO DE CERO) ⬅️
-      // 1. Detectamos si es inactivo
-      const isInactive = profile?.status === 'inactivo';
-
-      // 2. Cálculo de días ganados (Lógica original)
       let daysEarned = 12; 
       if (yearsOfService >= 1) {
           if (yearsOfService >= 1 && yearsOfService <= 5) {
@@ -159,16 +154,14 @@ export default function EmployeeVacationSearch() {
           }
       }
 
-      // 3. Construcción del Balance Final
-      // SI ESTÁ INACTIVO -> available_days se fuerza a 0.
       const finalBalance = balance ? {
           total_days: balance.total_days,
           used_days: balance.used_days,
-          available_days: isInactive ? 0 : balance.available_days 
+          available_days: balance.available_days
       } : {
           total_days: daysEarned,
           used_days: 0,
-          available_days: isInactive ? 0 : daysEarned
+          available_days: daysEarned
       };
 
       const totalDaysRecorded = attendance.length;
@@ -178,7 +171,6 @@ export default function EmployeeVacationSearch() {
 
       return {
         fullName: user.full_name,
-        status: profile?.status || '',
         // Si no hay perfil, mostramos el username o 'S/N'
         employeeNumber: profile?.employee_number || user.id || 'S/N',
         email: user.email,
@@ -276,7 +268,8 @@ export default function EmployeeVacationSearch() {
 
       {/* SECCIÓN 2: DETALLE (FICHA) */}
       {selectedUserId && employeeDetail && (
-        <div className="grid gap-6 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-500"> 
+        <div className="grid gap-6 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
           <Card className="lg:col-span-2 shadow-md border-blue-100 overflow-hidden">
             <div className="bg-blue-600 h-2 w-full"></div>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -302,20 +295,6 @@ export default function EmployeeVacationSearch() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                     {/* ➡️ CORRECCIÓN BADGE DE ESTATUS ⬅️ */}
-                      <div className="space-y-1 col-span-2">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estatus Actual</p>
-                         <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                           // Convertimos a minúsculas para evitar errores de 'Activo' vs 'activo'
-                           (employeeDetail.status || '').toLowerCase() === 'inactivo'
-                             ? 'bg-red-100 text-red-800 border-red-200' 
-                             : 'bg-green-100 text-green-800 border-green-200'
-                         }`}>
-                           {/* Texto condicional */}
-                           {(employeeDetail.status || '').toLowerCase() === 'inactivo' ? 'INACTIVO' : 'ACTIVO'}
-                         </div>
-                      </div>
                      <div className="space-y-1">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Departamento</p>
                         <p className="text-sm font-medium">{employeeDetail.department}</p>
@@ -331,7 +310,6 @@ export default function EmployeeVacationSearch() {
                             {employeeDetail.hireDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric'})}
                         </div>
                      </div>
-                </div>
                 </div>
               </div>
 
@@ -386,36 +364,26 @@ export default function EmployeeVacationSearch() {
               )}
             </CardContent>
           </Card>
-          
+
           {/* Acciones */}
           <div className="space-y-6">
                 <CardContent className="space-y-4 pt-6">
                   <div className="mt-4">
-                   {/* ➡️ CORRECCIÓN MENSAJES ⬅️ */}
-                      
-                      {/* 1. ¿Está Inactivo? (Uso de toLowerCase para seguridad) */}
-                      {(employeeDetail.status || '').toLowerCase() === 'inactivo' ? (
-                        <div className="flex items-start gap-2 p-3 bg-red-50 rounded text-sm text-red-700 border border-red-100">
-                            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0"/>
-                            <span>NO es elegible para vacaciones (está inactivo).</span>
-                        </div>
-
-                     /* 2. PRIORIDAD MEDIA: Si está ACTIVO pero NO TIENE DÍAS. */
-                      ) : employeeDetail.balance.available_days <= 0 ? (
+                      {employeeDetail.balance.available_days <= 0 ? (
                         <div className="flex items-start gap-2 p-3 bg-orange-50 rounded text-sm text-orange-700 border border-orange-100">
                             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0"/>
                             <span>Sin días disponibles.</span>
                         </div>
-
-                      /* 3. PRIORIDAD BAJA: Si pasa las dos anteriores, es ELEGIBLE. */
                       ) : (
-                          <div className="flex items-center gap-2 p-3 bg-green-50 rounded text-sm text-green-700 border border-green-100">
-                              <CheckCircle className="h-4 w-4 shrink-0"/>
-                              <span>Elegible para vacaciones.</span>
-                          </div>
+                         !employeeDetail.hasAttendanceAlert && !employeeDetail.hasSevereIncidents && (
+                            <div className="flex items-center gap-2 p-3 bg-green-50 rounded text-sm text-green-700 border border-green-100">
+                                <CheckCircle className="h-4 w-4 shrink-0"/>
+                                <span>Elegible para vacaciones.</span>
+                            </div>
+                         )
                       )}
-                      {/* ➡️ FIN MENSAJES CORREGIDOS ⬅️ */}
-                    </div>
+                  </div>
+
                 </CardContent>
           </div>
 

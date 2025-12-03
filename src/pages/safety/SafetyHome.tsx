@@ -60,18 +60,6 @@ export default function SafetyHome() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/10 border-red-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Alertas Activas</p>
-                <div className="text-2xl font-bold">{stats?.activeAlerts || 0}</div>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -116,24 +104,6 @@ export default function SafetyHome() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckSquare className="h-5 w-5 text-primary" /> Checklists
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Listas de verificación reutilizables para inspecciones.</p>
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => navigate('/seguridad-higiene/checklists')}>Ver</Button>
-              {canManageSH && (
-                <Button variant="outline" onClick={() => navigate('/seguridad-higiene/checklists/new')}>Crear</Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -183,23 +153,6 @@ export default function SafetyHome() {
               <Button onClick={() => navigate('/seguridad-higiene/mantenimientos')}>Ver</Button>
               {canManageSH && (
                 <Button variant="outline" onClick={() => navigate('/seguridad-higiene/mantenimientos/new')}>Registrar</Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" /> Alertas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Alertas de stock, mantenimiento y revisiones pendientes.</p>
-            <div className="flex items-center justify-between">
-              <Button onClick={() => navigate('/seguridad-higiene/alertas')}>Ver Alertas</Button>
-              {(stats?.activeAlerts || 0) > 0 && (
-                <Badge variant="destructive">{stats?.activeAlerts} activas</Badge>
               )}
             </div>
           </CardContent>

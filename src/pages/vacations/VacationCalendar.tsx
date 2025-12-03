@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, AlertCircle, User, CheckCircle2, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, AlertCircle, User, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 export default function VacationCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDateInfo, setSelectedDateInfo] = useState<{ date: Date; requests: any[] } | null>(null);
-const [searchTerm, setSearchTerm] = useState('');
+
   const { data: holidays } = useQuery({
     queryKey: ['holidays', currentMonth.getFullYear()],
     queryFn: async () => {
@@ -107,8 +107,7 @@ const [searchTerm, setSearchTerm] = useState('');
           status,
           user_id,
           profiles!fk_vacation_requests_profiles (
-            full_name,
-            department
+            full_name
           )
         `)
         .eq('status', 'approved') 
@@ -203,13 +202,7 @@ const [searchTerm, setSearchTerm] = useState('');
       setSelectedDateInfo(null);
     }
   };
-// --- INICIO BLOQUE NUEVO (LÓGICA FILTRO) ---
-  // Filtramos las vacaciones si hay un término de búsqueda
-  const departmentResults = vacationRequests?.filter((req: any) => {
-    if (!searchTerm) return false;
-    const dept = req.profiles?.department?.toLowerCase() || ''; // Cambia 'department' si tu columna se llama distinto
-    return dept.includes(searchTerm.toLowerCase());
-  }) || [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -218,16 +211,7 @@ const [searchTerm, setSearchTerm] = useState('');
           Vista global de días festivos, períodos bloqueados y vacaciones del personal
         </p>
       </div>
-{/* Motor de Búsqueda */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar departamento..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8 bg-white"
-          />
-        </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -306,44 +290,7 @@ const [searchTerm, setSearchTerm] = useState('');
         </Card>
 
         <div className="space-y-4">
-          {searchTerm && (
-            <Card className="border-blue-200 bg-blue-50/50 animate-in fade-in zoom-in-95 duration-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2 text-blue-800">
-                  <Search className="h-4 w-4" />
-                  Resultados: "{searchTerm}"
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {departmentResults.length > 0 ? (
-                  <div className="space-y-3">
-                    {departmentResults.map((req: any) => (
-                      <div key={req.id} className="flex items-center gap-3 bg-white p-3 rounded-md border border-blue-100 shadow-sm">
-                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
-                          <User className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">
-                            {req.profiles ? req.profiles.full_name : "Usuario"}
-                          </p>
-                          <p className="text-xs text-blue-600 font-medium">
-                            {req.profiles?.department || "Sin departamento"}
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            {new Date(req.start_date + 'T12:00:00').toLocaleDateString('es-MX')} - {new Date(req.end_date + 'T12:00:00').toLocaleDateString('es-MX')}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No se encontraron vacaciones para este departamento en este mes.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          
           {selectedDateInfo && (
             <Card className="border-green-200 bg-green-50/50 animate-in fade-in slide-in-from-top-4 duration-300">
               <CardHeader className="pb-3">

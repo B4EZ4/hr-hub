@@ -2,24 +2,26 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/shared/DataTable';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { User, GraduationCap } from 'lucide-react';
+import { Search, User, GraduationCap } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { EmployeeCombobox } from '@/components/shared/EmployeeCombobox';
 
 export const PersonnelDevelopment = () => {
   const [employeeId, setEmployeeId] = useState('');
+  const [searchClicked, setSearchClicked] = useState(false);
 
   const { data: employee, isLoading: loadingEmployee } = useQuery({
     queryKey: ['employee-development', employeeId],
     queryFn: async () => {
-      if (!employeeId) return null;
-
+      if (!employeeId || employeeId.length !== 5) return null;
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -29,23 +31,14 @@ export const PersonnelDevelopment = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!employeeId,
+    enabled: searchClicked && employeeId.length === 5,
   });
 
   const { data: training = [] } = useQuery({
     queryKey: ['employee-training', employeeId],
     queryFn: async () => {
       if (!employeeId) return [];
-
-      // First get the profile to resolve user_id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('id', employeeId)
-        .single();
-
-      if (!profile || !profile.user_id) return [];
-
+      
       const { data, error } = await (supabase as any)
         .from('employee_training')
         .select(`
@@ -56,14 +49,26 @@ export const PersonnelDevelopment = () => {
             duration_hours
           )
         `)
-        .eq('employee_id', profile.user_id)
+        .eq('employee_id', employeeId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!employeeId,
+    enabled: searchClicked && employeeId.length === 5,
   });
+
+  const handleSearch = () => {
+    if (employeeId.length === 5) {
+      setSearchClicked(true);
+    }
+  };
+
+  const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 5); // Solo números, máx 5 dígitos
+    setEmployeeId(value);
+    setSearchClicked(false);
+  };
 
   const columns = [
     {
@@ -136,9 +141,9 @@ export const PersonnelDevelopment = () => {
       <Alert>
         <GraduationCap className="h-4 w-4" />
         <AlertDescription>
-          <strong>Instrucciones:</strong> Selecciona un empleado de la lista o busca por nombre, ID o posición 
-          para ver su historial de capacitación y desarrollo profesional. El sistema mostrará todos los cursos 
-          asignados, en progreso y completados.
+          <strong>Instrucciones:</strong> Ingresa el ID del empleado (5 dígitos) para ver su historial de
+          capacitación y desarrollo profesional. El sistema mostrará todos los cursos asignados, en progreso
+          y completados.
         </AlertDescription>
       </Alert>
 
@@ -146,16 +151,42 @@ export const PersonnelDevelopment = () => {
       <Card>
         <CardHeader>
           <CardTitle>Buscar Empleado</CardTitle>
-          <CardDescription>Selecciona un empleado de la lista</CardDescription>
+          <CardDescription>Ingresa el ID del empleado (formato: 12345)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="employee-select">Empleado</Label>
-            <EmployeeCombobox
-              value={employeeId}
-              onSelect={setEmployeeId}
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <Label htmlFor="employee-id">ID de Empleado</Label>
+              <Input
+                id="employee-id"
+                placeholder="12345"
+                value={employeeId}
+                onChange={handleIdChange}
+                maxLength={5}
+                className="mt-2"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Debe tener exactamente 5 dígitos numéricos
+              </p>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={handleSearch}
+                disabled={employeeId.length !== 5}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Buscar
+              </Button>
+            </div>
           </div>
+
+          {searchClicked && employeeId.length === 5 && !employee && !loadingEmployee && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>
+                <strong>No encontrado:</strong> No existe un empleado con el ID {employeeId}
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 

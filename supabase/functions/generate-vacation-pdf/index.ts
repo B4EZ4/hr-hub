@@ -225,7 +225,7 @@ serve(async (req) => {
     const pdfBytes = await pdfDoc.save()
     
     // Ruta de archivo: general/solicitud_ID.pdf
-    const fileName = `vacaciones/solicitud_${request_id}_${Date.now()}.pdf`
+    const fileName = `general/solicitud_${request_id}_${Date.now()}.pdf`
 
     const { error: uploadError } = await supabaseClient
       .storage

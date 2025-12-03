@@ -5,7 +5,9 @@ import { DataTable } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Briefcase, Filter, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { Briefcase, Filter, Pencil, Plus, Trash2, Calendar, MapPin, Clock, Building, User, FileText, Users, Mail, Phone, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRoles } from '@/hooks/useRoles';
 import { NewPositionDialog } from './NewPositionDialog';
@@ -20,8 +22,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useSearchParams } from 'react-router-dom';
 
-type RecruitmentPosition = Tables<'recruitment_positions'>;
+type RecruitmentPosition = Tables<'recruitment_positions'> & {
+  areas?: Tables<'areas'>;
+};
 
 const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   abierta: 'default',
@@ -44,7 +49,250 @@ const formatSchedule = (start?: string | null, end?: string | null) => {
   return `${format(start)} - ${format(end)}`;
 };
 
-import { useSearchParams } from 'react-router-dom';
+interface PositionDetailsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  position: RecruitmentPosition | null;
+}
+
+function PositionDetailsDialog({ open, onOpenChange, position }: PositionDetailsDialogProps) {
+  const { data: assignedPositions = [] } = useQuery({
+    queryKey: ['assigned-positions', position?.areas?.id],
+    queryFn: async () => {
+      if (!position?.areas?.id) return [];
+
+      const { data, error } = await (supabase as any)
+        .from('positions')
+        .select(`
+          *,
+          profiles!inner (
+            full_name,
+            email,
+            status
+          )
+        `)
+        .eq('area_id', position.areas.id)
+        .eq('status', 'activo')
+        .limit(5);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!position?.areas?.id,
+  });
+
+  const { data: hiringManager } = useQuery({
+    queryKey: ['hiring-manager', position?.hiring_manager],
+    queryFn: async () => {
+      if (!position?.hiring_manager) return null;
+
+      const { data, error } = await (supabase as any)
+        .from('users')
+        .select('full_name, email, phone, position')
+        .eq('id', position.hiring_manager)
+        .single();
+
+      if (error) {
+        console.error('Error fetching hiring manager:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!position?.hiring_manager,
+  });
+
+  if (!position) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <DialogTitle className="text-2xl">{position.title}</DialogTitle>
+              <DialogDescription className="mt-2">
+                {position.department} • {position.location}
+              </DialogDescription>
+            </div>
+            <Badge variant={
+              position.status === 'abierta' ? 'default' :
+                position.status === 'en_proceso' ? 'secondary' :
+                  position.status === 'pausada' ? 'outline' : 'destructive'
+            }>
+              {statusLabels[position.status] || position.status}
+            </Badge>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Información básica */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Nivel</p>
+                  <p className="font-medium">{position.seniority || 'No especificado'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Horario</p>
+                  <p className="font-medium">
+                    {position.work_start_time && position.work_end_time
+                      ? `${position.work_start_time.slice(0, 5)} - ${position.work_end_time.slice(0, 5)}`
+                      : 'No definido'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Ubicación</p>
+                  <p className="font-medium">{position.location}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Publicado</p>
+                  <p className="font-medium">{new Date(position.created_at).toLocaleDateString('es-ES')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Información del Área */}
+          {position.areas && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Información del Área
+                </h3>
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Nombre del Área</p>
+                      <p className="font-medium">{position.areas.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Estado</p>
+                      <Badge variant={position.areas.status === 'activo' ? 'default' : 'outline'}>
+                        {position.areas.status === 'activo' ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                    {position.areas.description && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-muted-foreground">Descripción</p>
+                        <p className="text-sm">{position.areas.description}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Responsable de Contratación */}
+          {hiringManager && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Responsable de Contratación
+                </h3>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Nombre</p>
+                      <p className="font-medium">{hiringManager.full_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        <p className="font-medium">{hiringManager.email}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Posición</p>
+                      <p className="font-medium">{hiringManager.position || 'No especificado'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Asignaciones en el Área */}
+          {assignedPositions.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Personal Asignado al Área
+                </h3>
+                <div className="space-y-3">
+                  {assignedPositions.map((assigned: any) => (
+                    <div key={assigned.id} className="bg-muted/50 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Posición</p>
+                          <p className="font-medium">{assigned.title}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Persona Asignada</p>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            <p className="font-medium">{assigned.profiles?.full_name || 'No asignado'}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estado</p>
+                          <Badge variant={assigned.profiles?.status === 'activo' ? 'default' : 'outline'}>
+                            {assigned.profiles?.status === 'activo' ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Descripción del puesto */}
+          <Separator />
+          <div>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Descripción del Puesto
+            </h3>
+            <div className="prose prose-sm max-w-none">
+              {position.description ? (
+                <div className="whitespace-pre-wrap bg-muted/50 rounded-lg p-4">
+                  {position.description}
+                </div>
+              ) : (
+                <p className="text-muted-foreground italic">No hay descripción disponible</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function RecruitmentPositionsList() {
   const { canManageRecruitment } = useRoles();
@@ -55,13 +303,23 @@ export default function RecruitmentPositionsList() {
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<RecruitmentPosition | null>(null);
   const [positionToDelete, setPositionToDelete] = useState<RecruitmentPosition | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<RecruitmentPosition | null>(null);
 
   const { data: positions = [], isLoading } = useQuery<RecruitmentPosition[]>({
     queryKey: ['recruitment-positions'],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('recruitment_positions')
-        .select('*')
+        .select(`
+          *,
+          areas!left (
+            id,
+            name,
+            description,
+            status,
+            parent_area_id
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -75,8 +333,16 @@ export default function RecruitmentPositionsList() {
 
   const columns = [
     { header: 'Título', accessorKey: 'title' },
-    { header: 'Departamento', accessorKey: 'department' },
-    { header: 'Ubicación', accessorKey: 'location' },
+    {
+      header: 'Departamento',
+      accessorKey: 'department',
+      cell: (value: string) => value || '-'
+    },
+    {
+      header: 'Ubicación',
+      accessorKey: 'location',
+      cell: (value: string) => value || '-'
+    },
     {
       header: 'Nivel',
       accessorKey: 'seniority',
@@ -95,6 +361,11 @@ export default function RecruitmentPositionsList() {
           {statusLabels[value] || value}
         </Badge>
       ),
+    },
+    {
+      header: 'Área',
+      accessorKey: 'areas.name',
+      cell: (value: string) => value || 'Sin área asignada',
     },
   ];
 
@@ -129,17 +400,10 @@ export default function RecruitmentPositionsList() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Posicioness</h1>
-          <p className="text-muted-foreground">Vacantes vigentes y su estado</p>
+          <h1 className="text-3xl font-bold tracking-tight">Posiciones de Reclutamiento</h1>
+          <p className="text-muted-foreground">Vacantes vigentes con información detallada de áreas y asignaciones</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => toast.info('Los filtros avanzados estarán disponibles pronto')}
-          >
-            <Filter className="mr-2 h-4 w-4" />
-            Filtros
-          </Button>
           {canManageRecruitment && (
             <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
@@ -155,22 +419,24 @@ export default function RecruitmentPositionsList() {
             <Briefcase className="h-5 w-5 text-primary" />
             Pipeline de vacantes
           </CardTitle>
-          <CardDescription>Supervisión rápida del estado de cada búsqueda</CardDescription>
+          <CardDescription>Supervisión detallada del estado de cada búsqueda con información de áreas</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
             data={filteredPositions}
             columns={columns}
             searchable
-            searchPlaceholder="Buscar por título, departamento o ubicación"
+            searchPlaceholder="Buscar por título, departamento, ubicación o área"
             emptyMessage="Todavía no hay vacantes registradas."
             actions={(row) => (
-              <div className="flex justify-end gap-1">
+              <div className="flex justify-end gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => toast.info(`Seguimiento detallado para "${row.title}" pronto disponible`)}
+                  onClick={() => setSelectedPosition(row)}
+                  className="flex items-center gap-2"
                 >
+                  <ExternalLink className="h-4 w-4" />
                   Ver detalles
                 </Button>
                 {canManageRecruitment && (
@@ -182,17 +448,18 @@ export default function RecruitmentPositionsList() {
                         setEditingPosition(row);
                         setDialogOpen(true);
                       }}
+                      className="flex items-center gap-2"
                     >
-                      <Pencil className="mr-2 h-4 w-4" />
+                      <Pencil className="h-4 w-4" />
                       Editar
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive"
+                      className="text-destructive flex items-center gap-2"
                       onClick={() => setPositionToDelete(row)}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                       Eliminar
                     </Button>
                   </>
@@ -213,6 +480,14 @@ export default function RecruitmentPositionsList() {
           position={editingPosition}
         />
       )}
+
+      <PositionDetailsDialog
+        open={!!selectedPosition}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPosition(null);
+        }}
+        position={selectedPosition}
+      />
 
       {canManageRecruitment && (
         <AlertDialog
@@ -237,7 +512,7 @@ export default function RecruitmentPositionsList() {
                 disabled={deleteMutation.isPending}
                 onClick={() => positionToDelete && deleteMutation.mutate(positionToDelete.id)}
               >
-                Eliminar
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

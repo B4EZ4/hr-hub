@@ -5,8 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Calendar, CheckSquare, FileText, TrendingUp, Users, Briefcase, Bell, StickyNote } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import AreaActionButton from './AreaActionButton';
-import VacanciesActionButton from './VacanciesActionButton';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
@@ -262,8 +260,24 @@ export const AreasDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <AreaActionButton />
-            <VacanciesActionButton />
+            <Link to="/reclutamiento/posiciones">
+              <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-primary/5">
+                <Users className="mr-3 h-5 w-5 text-primary" />
+                <div className="text-left">
+                  <div className="font-semibold">Gestionar Áreas</div>
+                  <div className="text-xs text-muted-foreground">Estructura organizacional</div>
+                </div>
+              </Button>
+            </Link>
+            <Link to="/reclutamiento/posiciones?status=abierta">
+              <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-chart-1/5">
+                <Briefcase className="mr-3 h-5 w-5 text-chart-1" />
+                <div className="text-left">
+                  <div className="font-semibold">Vacantes</div>
+                  <div className="text-xs text-muted-foreground">Posiciones abiertas</div>
+                </div>
+              </Button>
+            </Link>
             <Link to="/areas/promociones">
               <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-chart-2/5">
                 <TrendingUp className="mr-3 h-5 w-5 text-chart-2" />
