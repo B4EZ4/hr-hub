@@ -21,15 +21,15 @@ export const AreasDashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['areas-dashboard-stats'],
     queryFn: async () => {
-      const [positionsRes, vacanciesRes, promotionsRes, activitiesRes] = await Promise.all([
-        supabase.from('positions').select('*', { count: 'exact' }).eq('status', 'active'),
+      const [areasRes, vacanciesRes, promotionsRes, activitiesRes] = await Promise.all([
+        (supabase as any).from('positions').select('*', { count: 'exact' }).eq('status', 'activo'),
         supabase.from('recruitment_positions').select('*', { count: 'exact' }).eq('status', 'abierta'),
-        supabase.from('promotions').select('*', { count: 'exact' }).eq('status', 'propuesta'),
-        supabase.from('employee_activities').select('*', { count: 'exact' }).eq('status', 'pendiente'),
+        (supabase as any).from('promotions').select('*', { count: 'exact' }).eq('status', 'propuesta'),
+        (supabase as any).from('employee_activities').select('*', { count: 'exact' }).eq('status', 'pendiente'),
       ]);
 
       return {
-        activePositions: positionsRes.count || 0,
+        activePositions: areasRes.count || 0,
         openVacancies: vacanciesRes.count || 0,
         pendingPromotions: promotionsRes.count || 0,
         pendingActivities: activitiesRes.count || 0,
@@ -260,7 +260,7 @@ export const AreasDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Link to="/reclutamiento/posiciones">
+            <Link to="/areas/lista">
               <Button variant="outline" className="w-full justify-start h-auto py-4 hover:bg-primary/5">
                 <Users className="mr-3 h-5 w-5 text-primary" />
                 <div className="text-left">
