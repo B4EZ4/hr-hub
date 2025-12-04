@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as authLib from '@/lib/auth';
+import { syncSupabaseSessionToken } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: authLib.User | null;
@@ -36,16 +37,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(authData.user);
         setSession(authData.session);
         setRoles(authData.roles);
+        syncSupabaseSessionToken();
       } else {
         setUser(null);
         setSession(null);
         setRoles([]);
+        syncSupabaseSessionToken();
       }
     } catch (error) {
       console.error('Error refreshing session:', error);
       setUser(null);
       setSession(null);
       setRoles([]);
+      syncSupabaseSessionToken();
     } finally {
       setLoading(false);
     }
@@ -61,6 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(authData.user);
       setSession(authData.session);
       setRoles(authData.roles);
+      syncSupabaseSessionToken();
       return { error: null };
     } catch (error: any) {
       return { error: { message: error.message } };
@@ -72,6 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setRoles([]);
+    syncSupabaseSessionToken();
     navigate('/login');
   };
 

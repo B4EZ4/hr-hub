@@ -40,6 +40,13 @@ const optionalTime = z
   .optional()
   .or(z.literal(''));
 
+const sanitizeTextInput = (value: string) => {
+  const lettersOnly = value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+  const withoutLeadingSpaces = lettersOnly.replace(/^\s+/, '');
+  if (!withoutLeadingSpaces) return '';
+  return withoutLeadingSpaces.charAt(0).toUpperCase() + withoutLeadingSpaces.slice(1);
+};
+
 const positionSchema = z
   .object({
     title: z.string().min(3, 'Ingresa un título descriptivo'),
@@ -107,12 +114,12 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
       form.reset();
     } else if (position) {
       form.reset({
-        title: position.title,
+        title: position.title ? sanitizeTextInput(position.title) : '',
         department: position.department || '',
-        location: position.location || '',
+        location: position.location ? sanitizeTextInput(position.location) : '',
         seniority: position.seniority || '',
         status: (position.status as PositionFormValues['status']) || 'abierta',
-        description: position.description || '',
+        description: position.description ? sanitizeTextInput(position.description) : '',
         work_start_time: position.work_start_time?.slice(0, 5) || '',
         work_end_time: position.work_end_time?.slice(0, 5) || '',
       });
@@ -172,7 +179,14 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
                 <FormItem>
                   <FormLabel>Título *</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled={mutation.isPending} />
+                    <Input
+                      value={field.value}
+                      onChange={(e) => field.onChange(sanitizeTextInput(e.target.value))}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                      disabled={mutation.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -187,7 +201,14 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
                   <FormItem>
                     <FormLabel>Departamento</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={mutation.isPending} />
+                      <Input
+                        value={field.value}
+                        onChange={(e) => field.onChange(sanitizeTextInput(e.target.value))}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        disabled={mutation.isPending}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -201,7 +222,14 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
                   <FormItem>
                     <FormLabel>Ubicación</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={mutation.isPending} />
+                      <Input
+                        value={field.value}
+                        onChange={(e) => field.onChange(sanitizeTextInput(e.target.value))}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        disabled={mutation.isPending}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -297,7 +325,15 @@ export function NewPositionDialog({ open, onOpenChange, onCreated, position }: N
                 <FormItem>
                   <FormLabel>Descripción</FormLabel>
                   <FormControl>
-                    <Textarea {...field} rows={4} disabled={mutation.isPending} />
+                    <Textarea
+                      value={field.value}
+                      onChange={(e) => field.onChange(sanitizeTextInput(e.target.value))}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                      rows={4}
+                      disabled={mutation.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

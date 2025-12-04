@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,11 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Clock } from "lucide-react";
+import { Trash2, Clock, StickyNote } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import type { Database } from "@/integrations/supabase/types";
 
 type AttendanceRecord = Database["public"]["Tables"]["attendance_records"]["Row"] & {
@@ -49,111 +49,47 @@ export function EditAttendanceDialog({
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+    const [note, setNote] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    const [checkInDate, setCheckInDate] = useState("");
-    const [checkInTime, setCheckInTime] = useState("");
-    const [checkOutDate, setCheckOutDate] = useState("");
-    const [checkOutTime, setCheckOutTime] = useState("");
-
-    // ACTUALIZACIÓN IMPORTANTE: Usamos useEffect para resetear el form cada vez que cambia el 'record' o se abre el diálogo.
+    // Cargar nota desde localStorage cuando se abre el diálogo
     useEffect(() => {
         if (open && record) {
-            // Check-in
-            if (record.check_in) {
-                // El navegador convierte automáticamente UTC a tu hora local aquí
-                const checkIn = new Date(record.check_in);
-                setCheckInDate(format(checkIn, "yyyy-MM-dd"));
-                setCheckInTime(format(checkIn, "HH:mm"));
-            } else {
-                setCheckInDate("");
-                setCheckInTime("");
-            }
-
-            // Check-out
-            if (record.check_out) {
-                const checkOut = new Date(record.check_out);
-                setCheckOutDate(format(checkOut, "yyyy-MM-dd"));
-                setCheckOutTime(format(checkOut, "HH:mm"));
-            } else {
-                setCheckOutDate("");
-                setCheckOutTime("");
-            }
+            const savedNote = localStorage.getItem(`attendance_note_${record.id}`);
+            setNote(savedNote || "");
         }
     }, [record, open]);
 
-    const updateMutation = useMutation({
-        mutationFn: async () => {
-            if (!record) return;
+    const handleSave = () => {
+        if (!record) return;
 
-            // Construimos la fecha localmente.
-            // Al unir fecha + "T" + hora, el navegador crea un objeto Date en TU zona horaria.
-            // Luego .toISOString() lo convierte a UTC para guardarlo en la base de datos.
+        // Guardar nota localmente
+        localStorage.setItem(`attendance_note_${record.id}`, note);
 
-            let checkInTimestamp = null;
-            if (checkInDate && checkInTime) {
-                const localDate = new Date(`${checkInDate}T${checkInTime}:00`);
-                checkInTimestamp = localDate.toISOString();
-            }
+        toast({
+            title: "✅ Nota guardada",
+            description: "La nota se ha guardado localmente.",
+        });
+        onOpenChange(false);
+    };
 
-            let checkOutTimestamp = null;
-            if (checkOutDate && checkOutTime) {
-                const localDate = new Date(`${checkOutDate}T${checkOutTime}:00`);
-                checkOutTimestamp = localDate.toISOString();
-            }
+    const handleDelete = async () => {
+        if (!record) return;
+        setIsDeleting(true);
 
-            const { error } = await supabase
+        try {
+            console.log('Attempting to delete record:', record.id);
+
+            const { error, count } = await supabase
                 .from("attendance_records")
-                .update({
-                    check_in: checkInTimestamp,
-                    check_out: checkOutTimestamp,
-                    status: checkOutTimestamp ? "completado" : "presente",
-                })
+                .delete({ count: "exact" })
                 .eq("id", record.id);
 
             if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({
-                queryKey: ["attendance-records"],
-                exact: false
-            });
-            queryClient.invalidateQueries({ queryKey: ["attendance-employees"] });
-            toast({
-                title: "✅ Registro actualizado",
-                description: "Los cambios se han guardado correctamente.",
-            });
-            onOpenChange(false);
-        },
-        onError: (error: any) => {
-            toast({
-                title: "❌ Error al actualizar",
-                description: error.message || "No se pudo actualizar el registro.",
-                variant: "destructive",
-            });
-        },
-    });
 
-    const deleteMutation = useMutation({
-        mutationFn: async () => {
-            if (!record) return;
+            // Limpiar la nota local si existe
+            localStorage.removeItem(`attendance_note_${record.id}`);
 
-            console.log('Attempting to delete record:', record.id);
-
-            const { data, error, count } = await supabase
-                .from("attendance_records")
-                .delete({ count: "exact" })
-                .eq("id", record.id)
-                .select();
-
-            if (error) throw error;
-
-            if (count === 0) {
-                throw new Error("La operación fue exitosa pero no se borró ninguna fila (count: 0). Posible problema de RLS.");
-            }
-
-            return data;
-        },
-        onSuccess: (data) => {
             queryClient.invalidateQueries({
                 queryKey: ["attendance-records"],
                 exact: false
@@ -166,16 +102,17 @@ export function EditAttendanceDialog({
             });
             setShowDeleteAlert(false);
             onOpenChange(false);
-        },
-        onError: (error: any) => {
+        } catch (error: any) {
             console.error('Delete mutation error:', error);
             toast({
                 title: "❌ Error al eliminar",
                 description: error.message || "No se pudo eliminar el registro.",
                 variant: "destructive",
             });
-        },
-    });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     if (!record) return null;
 
@@ -186,14 +123,19 @@ export function EditAttendanceDialog({
         .toUpperCase()
         .slice(0, 2) || "??";
 
+    const formatDateTime = (dateString: string | null) => {
+        if (!dateString) return "No registrado";
+        return format(new Date(dateString), "dd/MM/yyyy hh:mm a");
+    };
+
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
-                        <DialogTitle>Editar Registro de Asistencia</DialogTitle>
+                        <DialogTitle>Detalles de Asistencia</DialogTitle>
                         <DialogDescription>
-                            Modifica los horarios de entrada y salida del empleado.
+                            Visualiza los detalles de asistencia y agrega notas personales.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -210,74 +152,46 @@ export function EditAttendanceDialog({
                             </p>
                         </div>
                         <div className="text-right text-sm text-muted-foreground">
-                            {/* Convertimos fecha a local para mostrarla bien */}
                             <p>{format(new Date(record.attendance_date), "dd MMM yyyy")}</p>
                         </div>
                     </div>
 
-                    {/* Check-in */}
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="check-in-date" className="flex items-center gap-2">
+                    <div className="grid gap-4 py-4">
+                        {/* Check-in Info */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right flex items-center justify-end gap-2">
                                 <Clock className="h-4 w-4" />
-                                Entrada (Check-in)
+                                Entrada
                             </Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <Label htmlFor="check-in-date" className="text-xs text-muted-foreground">
-                                        Fecha
-                                    </Label>
-                                    <Input
-                                        id="check-in-date"
-                                        type="date"
-                                        value={checkInDate}
-                                        onChange={(e) => setCheckInDate(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="check-in-time" className="text-xs text-muted-foreground">
-                                        Hora
-                                    </Label>
-                                    <Input
-                                        id="check-in-time"
-                                        type="time"
-                                        value={checkInTime}
-                                        onChange={(e) => setCheckInTime(e.target.value)}
-                                    />
-                                </div>
+                            <div className="col-span-3 font-medium">
+                                {formatDateTime(record.check_in)}
                             </div>
                         </div>
 
-                        {/* Check-out */}
-                        <div className="space-y-2">
-                            <Label htmlFor="check-out-date" className="flex items-center gap-2">
+                        {/* Check-out Info */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right flex items-center justify-end gap-2">
                                 <Clock className="h-4 w-4" />
-                                Salida (Check-out)
+                                Salida
                             </Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <Label htmlFor="check-out-date" className="text-xs text-muted-foreground">
-                                        Fecha
-                                    </Label>
-                                    <Input
-                                        id="check-out-date"
-                                        type="date"
-                                        value={checkOutDate}
-                                        onChange={(e) => setCheckOutDate(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="check-out-time" className="text-xs text-muted-foreground">
-                                        Hora
-                                    </Label>
-                                    <Input
-                                        id="check-out-time"
-                                        type="time"
-                                        value={checkOutTime}
-                                        onChange={(e) => setCheckOutTime(e.target.value)}
-                                    />
-                                </div>
+                            <div className="col-span-3 font-medium">
+                                {formatDateTime(record.check_out)}
                             </div>
+                        </div>
+
+                        {/* Local Note */}
+                        <div className="grid gap-2">
+                            <Label htmlFor="note" className="flex items-center gap-2">
+                                <StickyNote className="h-4 w-4" />
+                                Nota (Local)
+                            </Label>
+                            <Textarea
+                                id="note"
+                                placeholder="Escribe una nota personal para este registro..."
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                className="min-h-[100px]"
+                            />
                         </div>
                     </div>
 
@@ -297,14 +211,13 @@ export function EditAttendanceDialog({
                                 variant="outline"
                                 onClick={() => onOpenChange(false)}
                             >
-                                Cancelar
+                                Cerrar
                             </Button>
                             <Button
                                 type="button"
-                                onClick={() => updateMutation.mutate()}
-                                disabled={updateMutation.isPending}
+                                onClick={handleSave}
                             >
-                                {updateMutation.isPending ? "Guardando..." : "Guardar cambios"}
+                                Guardar nota
                             </Button>
                         </div>
                     </DialogFooter>
@@ -326,11 +239,11 @@ export function EditAttendanceDialog({
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={() => deleteMutation.mutate()}
+                            onClick={handleDelete}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            disabled={deleteMutation.isPending}
+                            disabled={isDeleting}
                         >
-                            {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+                            {isDeleting ? "Eliminando..." : "Eliminar"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -9,6 +9,19 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+const authAwareFetch: typeof fetch = async (input, init) => {
+  const sessionToken = getSessionToken();
+  const headers = new Headers(init?.headers || {});
+
+  if (sessionToken) {
+    headers.set('x-session-token', sessionToken);
+  } else {
+    headers.delete('x-session-token');
+  }
+
+  return fetch(input, { ...init, headers });
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
@@ -16,8 +29,24 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   },
   global: {
-    headers: {
-      'x-session-token': getSessionToken() || '',
-    },
+    fetch: authAwareFetch,
   },
 });
+
+export const syncSupabaseSessionToken = () => {
+  const sessionToken = getSessionToken();
+  const value = sessionToken || '';
+
+  (supabase as any).__customHeaders = {
+    ...(supabase as any).__customHeaders,
+    'x-session-token': value,
+  };
+
+  if ((supabase as any).rest?.headers) {
+    (supabase as any).rest.headers['x-session-token'] = value;
+  }
+
+  if ((supabase as any).realtime?.headers) {
+    (supabase as any).realtime.headers['x-session-token'] = value;
+  }
+};

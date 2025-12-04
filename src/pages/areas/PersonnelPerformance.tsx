@@ -2,24 +2,42 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, User, TrendingUp, Award } from 'lucide-react';
+import { User, TrendingUp, Award } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export const PersonnelPerformance = () => {
   const [employeeId, setEmployeeId] = useState('');
-  const [searchClicked, setSearchClicked] = useState(false);
+
+  // Obtener lista de todos los empleados
+  const { data: employees = [], isLoading: loadingEmployees } = useQuery({
+    queryKey: ['all-employees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, position, department')
+        .order('full_name');
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: employee, isLoading: loadingEmployee } = useQuery({
     queryKey: ['employee-performance', employeeId],
     queryFn: async () => {
-      if (!employeeId || employeeId.length !== 5) return null;
+      if (!employeeId) return null;
       
       const { data, error } = await supabase
         .from('profiles')
@@ -30,7 +48,7 @@ export const PersonnelPerformance = () => {
       if (error) throw error;
       return data;
     },
-    enabled: searchClicked && employeeId.length === 5,
+    enabled: !!employeeId,
   });
 
   const { data: evaluations = [] } = useQuery({
@@ -47,20 +65,8 @@ export const PersonnelPerformance = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: searchClicked && employeeId.length === 5,
+    enabled: !!employeeId,
   });
-
-  const handleSearch = () => {
-    if (employeeId.length === 5) {
-      setSearchClicked(true);
-    }
-  };
-
-  const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 5);
-    setEmployeeId(value);
-    setSearchClicked(false);
-  };
 
   // Preparar datos para gráfica
   const chartData = evaluations.map((evaluation: any) => ({
@@ -86,7 +92,7 @@ export const PersonnelPerformance = () => {
       <Alert>
         <Award className="h-4 w-4" />
         <AlertDescription>
-          <strong>Instrucciones:</strong> Ingresa el ID del empleado (5 dígitos) para ver su historial de
+          <strong>Instrucciones:</strong> Selecciona un empleado del desplegable para ver su historial de
           evaluaciones de desempeño, métricas de rendimiento y gráficas evolutivas.
         </AlertDescription>
       </Alert>
@@ -94,43 +100,40 @@ export const PersonnelPerformance = () => {
       {/* Búsqueda */}
       <Card>
         <CardHeader>
-          <CardTitle>Buscar Empleado</CardTitle>
-          <CardDescription>Ingresa el ID del empleado (formato: 12345)</CardDescription>
+          <CardTitle>Seleccionar Empleado</CardTitle>
+          <CardDescription>Selecciona un empleado de la lista</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Label htmlFor="employee-id">ID de Empleado</Label>
-              <Input
-                id="employee-id"
-                placeholder="12345"
-                value={employeeId}
-                onChange={handleIdChange}
-                maxLength={5}
-                className="mt-2"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Debe tener exactamente 5 dígitos numéricos
-              </p>
-            </div>
-            <div className="flex items-end">
-              <Button 
-                onClick={handleSearch}
-                disabled={employeeId.length !== 5}
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Buscar
-              </Button>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="employee-select">Empleado</Label>
+            <Select value={employeeId} onValueChange={setEmployeeId}>
+              <SelectTrigger id="employee-select" className="w-full">
+                <SelectValue placeholder="Selecciona un empleado..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {loadingEmployees ? (
+                  <SelectItem value="loading" disabled>
+                    Cargando empleados...
+                  </SelectItem>
+                ) : employees.length === 0 ? (
+                  <SelectItem value="empty" disabled>
+                    No hay empleados disponibles
+                  </SelectItem>
+                ) : (
+                  employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{emp.full_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {emp.position} {emp.department ? `- ${emp.department}` : ''} (ID: {emp.id})
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
-
-          {searchClicked && employeeId.length === 5 && !employee && !loadingEmployee && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertDescription>
-                <strong>No encontrado:</strong> No existe un empleado con el ID {employeeId}
-              </AlertDescription>
-            </Alert>
-          )}
         </CardContent>
       </Card>
 

@@ -17,10 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface Vacancy {
   id: string;
-  position_title: string;
+  title: string;
   description: string | null;
   status: string;
-  priority: string;
+  department: string | null;
+  location: string | null;
+  work_start_time: string | null;
+  work_end_time: string | null;
+  seniority: string | null;
   created_at: string;
 }
 
@@ -29,14 +33,17 @@ export const VacanciesManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
+  const [editingVacancy, setEditingVacancy] = useState<Vacancy | null>(null);
   
   const [formData, setFormData] = useState({
-    position_title: '',
+    title: '',
     description: '',
-    requirements: '',
     status: 'abierta',
-    priority: 'normal',
-    area_id: '',
+    department: '',
+    location: '',
+    work_start_time: '08:00',
+    work_end_time: '16:00',
+    seniority: 'junior',
   });
 
   const [applicationData, setApplicationData] = useState({
@@ -49,11 +56,20 @@ export const VacanciesManagement = () => {
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
 
+  const sanitizeTextInput = (value: string) => {
+    const lettersOnly = value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+    const withoutLeadingSpaces = lettersOnly.replace(/^\s+/, '');
+    if (!withoutLeadingSpaces) return '';
+    return withoutLeadingSpaces.charAt(0).toUpperCase() + withoutLeadingSpaces.slice(1);
+  };
+
+  const normalizeTitle = (value: string) => value.trim().toLowerCase();
+
   const { data: vacancies = [], isLoading } = useQuery({
-    queryKey: ['job-vacancies'],
+    queryKey: ['recruitment-positions-vacancies'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('job_vacancies')
+        .from('recruitment_positions')
         .select('*')
         .order('created_at', { ascending: false });
       
@@ -61,6 +77,14 @@ export const VacanciesManagement = () => {
       return data;
     },
   });
+
+  const isDuplicateTitle =
+    formData.title.trim().length > 0 &&
+    vacancies.some(
+      (vacancy) =>
+        vacancy.id !== editingVacancy?.id &&
+        normalizeTitle(vacancy.title) === normalizeTitle(formData.title)
+    );
 
   const { data: areas = [] } = useQuery({
     queryKey: ['areas-list'],
@@ -78,17 +102,50 @@ export const VacanciesManagement = () => {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from('job_vacancies').insert(data);
+      const sanitizedPayload = {
+        ...data,
+        title: sanitizeTextInput(data.title),
+        location: data.location ? sanitizeTextInput(data.location) : '',
+        description: data.description ? sanitizeTextInput(data.description) : '',
+      };
+
+      if (editingVacancy) {
+        const { error } = await supabase
+          .from('recruitment_positions')
+          .update(sanitizedPayload)
+          .eq('id', editingVacancy.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('recruitment_positions').insert(sanitizedPayload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recruitment-positions-vacancies'] });
+      toast.success(editingVacancy ? 'Vacante actualizada exitosamente' : 'Vacante creada exitosamente');
+      setDialogOpen(false);
+      resetForm();
+      setEditingVacancy(null);
+    },
+    onError: () => {
+      toast.error(editingVacancy ? 'Error al actualizar la vacante' : 'Error al crear la vacante');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('recruitment_positions')
+        .delete()
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job-vacancies'] });
-      toast.success('Vacante creada exitosamente');
-      setDialogOpen(false);
-      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['recruitment-positions-vacancies'] });
+      toast.success('Vacante eliminada exitosamente');
     },
     onError: () => {
-      toast.error('Error al crear la vacante');
+      toast.error('Error al eliminar la vacante');
     },
   });
 
@@ -114,17 +171,24 @@ export const VacanciesManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      position_title: '',
+      title: '',
       description: '',
-      requirements: '',
       status: 'abierta',
-      priority: 'normal',
-      area_id: '',
+      department: '',
+      location: '',
+      work_start_time: '08:00',
+      work_end_time: '16:00',
+      seniority: 'junior',
     });
+    setEditingVacancy(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDuplicateTitle) {
+      toast.error('Ya existe una vacante con ese título');
+      return;
+    }
     createMutation.mutate(formData);
   };
 
@@ -143,28 +207,42 @@ export const VacanciesManagement = () => {
     setApplyDialogOpen(true);
   };
 
+  const openEditDialog = (vacancy: Vacancy) => {
+    setEditingVacancy(vacancy);
+    setFormData({
+      title: vacancy.title ? sanitizeTextInput(vacancy.title) : '',
+      description: vacancy.description ? sanitizeTextInput(vacancy.description) : '',
+      status: vacancy.status,
+      department: vacancy.department || '',
+      location: vacancy.location ? sanitizeTextInput(vacancy.location) : '',
+      work_start_time: vacancy.work_start_time || '08:00',
+      work_end_time: vacancy.work_end_time || '16:00',
+      seniority: vacancy.seniority || 'junior',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (vacancy: Vacancy) => {
+    if (window.confirm(`¿Estás seguro de eliminar la vacante "${vacancy.title}"?`)) {
+      deleteMutation.mutate(vacancy.id);
+    }
+  };
+
   const filteredVacancies = vacancies.filter((vacancy) =>
-    vacancy.position_title.toLowerCase().includes(searchTerm.toLowerCase())
+    vacancy.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const importantVacancies = filteredVacancies.filter(v => v.priority === 'alta' || v.priority === 'critica');
+  const importantVacancies = filteredVacancies.filter(v => v.status === 'abierta');
 
   const statusLabels: Record<string, string> = {
     abierta: 'Abierta',
     en_proceso: 'En Proceso',
+    pausada: 'Pausada',
     cerrada: 'Cerrada',
-    cancelada: 'Cancelada',
-  };
-
-  const priorityLabels: Record<string, string> = {
-    baja: 'Baja',
-    normal: 'Normal',
-    alta: 'Alta',
-    critica: 'Crítica',
   };
 
   const columns = [
-    { header: 'Posición', accessorKey: 'position_title' as keyof Vacancy },
+    { header: 'Posición', accessorKey: 'title' as keyof Vacancy },
     { 
       header: 'Estado', 
       accessorKey: 'status' as keyof Vacancy,
@@ -176,21 +254,27 @@ export const VacanciesManagement = () => {
     },
     { 
       header: 'Prioridad', 
-      accessorKey: 'priority' as keyof Vacancy,
-      cell: (value: string) => (
-        <Badge variant={value === 'alta' || value === 'critica' ? 'destructive' : 'outline'}>
-          {priorityLabels[value]}
+      accessorKey: 'seniority' as keyof Vacancy,
+      cell: (value: string) => value ? (
+        <Badge variant="outline">
+          {value}
         </Badge>
-      ),
+      ) : null,
     },
   ];
 
   const actions = (vacancy: Vacancy) => (
     <div className="flex gap-2">
-      <Button variant="outline" size="sm" onClick={() => openApplyDialog(vacancy)}>
-        <Send className="mr-2 h-4 w-4" />
-        Postular
-      </Button>
+      {canManageUsers && (
+        <>
+          <Button variant="ghost" size="icon" onClick={() => openEditDialog(vacancy)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(vacancy)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </>
+      )}
     </div>
   );
 
@@ -217,66 +301,83 @@ export const VacanciesManagement = () => {
                 Crear Vacante
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Nueva Vacante</DialogTitle>
+                <DialogTitle>{editingVacancy ? 'Editar posición' : 'Nueva posición'}</DialogTitle>
                 <DialogDescription>
-                  Completa los datos para publicar una nueva vacante
+                  Define los datos básicos de la vacante.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="position_title">Título de la Posición *</Label>
+                  <Label htmlFor="title">Título *</Label>
                   <Input
-                    id="position_title"
-                    value={formData.position_title}
-                    onChange={(e) => setFormData({ ...formData, position_title: e.target.value })}
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: sanitizeTextInput(e.target.value) })}
+                    placeholder="Desarrollador Junior"
                     required
                   />
-                </div>
-                <div>
-                  <Label htmlFor="area_id">Área *</Label>
-                  <Select value={formData.area_id} onValueChange={(value) => setFormData({ ...formData, area_id: value })} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un área" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {areas.map((area) => (
-                        <SelectItem key={area.id} value={area.id}>{area.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="description">Descripción</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="requirements">Requisitos</Label>
-                  <Textarea
-                    id="requirements"
-                    value={formData.requirements}
-                    onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                    rows={3}
-                  />
+                  {isDuplicateTitle && (
+                    <p className="mt-1 text-sm text-destructive">Ya existe una vacante con ese nombre.</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="priority">Prioridad</Label>
-                    <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+                    <Label htmlFor="department">Departamento</Label>
+                    <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona departamento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {areas.map((area) => (
+                          <SelectItem key={area.id} value={area.name}>{area.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="location">Ubicación</Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: sanitizeTextInput(e.target.value) })}
+                      placeholder="Morelos"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="work_start_time">Hora de entrada</Label>
+                    <Input
+                      id="work_start_time"
+                      type="time"
+                      value={formData.work_start_time}
+                      onChange={(e) => setFormData({ ...formData, work_start_time: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="work_end_time">Hora de salida</Label>
+                    <Input
+                      id="work_end_time"
+                      type="time"
+                      value={formData.work_end_time}
+                      onChange={(e) => setFormData({ ...formData, work_end_time: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="seniority">Nivel / Experiencia</Label>
+                    <Select value={formData.seniority} onValueChange={(value) => setFormData({ ...formData, seniority: value })}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="baja">Baja</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="critica">Crítica</SelectItem>
+                        <SelectItem value="junior">Junior / Inicial</SelectItem>
+                        <SelectItem value="semi-senior">Semi Senior</SelectItem>
+                        <SelectItem value="senior">Senior</SelectItem>
+                        <SelectItem value="experto">Experto</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -289,16 +390,29 @@ export const VacanciesManagement = () => {
                       <SelectContent>
                         <SelectItem value="abierta">Abierta</SelectItem>
                         <SelectItem value="en_proceso">En Proceso</SelectItem>
+                        <SelectItem value="pausada">Pausada</SelectItem>
                         <SelectItem value="cerrada">Cerrada</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+                <div>
+                  <Label htmlFor="description">Descripción</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: sanitizeTextInput(e.target.value) })}
+                    placeholder="Desarrollador Junior"
+                    rows={3}
+                  />
+                </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                     Cancelar
                   </Button>
-                  <Button type="submit">Crear Vacante</Button>
+                  <Button type="submit" disabled={isDuplicateTitle || createMutation.isPending}>
+                    {editingVacancy ? 'Actualizar Vacante' : 'Crear Vacante'}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
@@ -331,8 +445,8 @@ export const VacanciesManagement = () => {
               <Card key={vacancy.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <CardTitle>{vacancy.position_title}</CardTitle>
-                    <Badge variant="destructive">{priorityLabels[vacancy.priority]}</Badge>
+                    <CardTitle>{vacancy.title}</CardTitle>
+                    <Badge variant="default">Abierta</Badge>
                   </div>
                   <CardDescription>{vacancy.description}</CardDescription>
                 </CardHeader>
@@ -352,7 +466,7 @@ export const VacanciesManagement = () => {
       <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Postular a: {selectedVacancy?.position_title}</DialogTitle>
+            <DialogTitle>Postular a: {selectedVacancy?.title}</DialogTitle>
             <DialogDescription>
               Completa tus datos para enviar tu postulación
             </DialogDescription>

@@ -20,10 +20,28 @@ import {
   Calendar,
   Search,
   History,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  User
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-
+// AÑADIR ESTAS IMPORTACIONES NUEVAS
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 // IMPORTS DE TUS COMPONENTES
 import VacationRequest from "./VacationRequest";
 import VacationsList from "./VacationsList";
@@ -36,7 +54,31 @@ const VacationsDashboard = () => {
   
   // 2. ESTADO PARA CONTROLAR VISTAS ('dashboard' | 'form' | 'list')
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'list' | 'calendar' | 'search'>('dashboard');
+// --- INICIO BLOQUE NUEVO (Directorio) ---
+  const [directorySearch, setDirectorySearch] = useState('');
 
+  // Consulta para obtener TODOS los perfiles para el directorio
+  const { data: allProfiles } = useQuery({
+    queryKey: ['all-profiles-directory'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('full_name');
+      if (error) return [];
+      return data || [];
+    }
+  });
+
+  // Lógica de filtrado para el modal
+  const filteredDirectory = allProfiles?.filter((emp: any) => {
+    if (!directorySearch) return true;
+    const searchLower = directorySearch.toLowerCase();
+    const nameMatch = emp.full_name?.toLowerCase().includes(searchLower);
+    const deptMatch = emp.department?.toLowerCase().includes(searchLower);
+    return nameMatch || deptMatch;
+  }) || [];
+  // --- FIN BLOQUE NUEVO ---
   // --- CONSULTA 1: Solicitudes Pendientes ---
   const { data: pendingCount = 0, isLoading: loadingPending } = useQuery({
     queryKey: ['dashboard-pending'],
@@ -300,6 +342,91 @@ const VacationsDashboard = () => {
               <CardDescription>{pendingCount} Todas las solicitudes pasadas</CardDescription>
             </CardHeader>
           </Card>
+          
+          {/* --- INICIO BLOQUE NUEVO (TARJETA DIRECTORIO + MODAL) --- */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Card
+                className="hover:bg-muted/50 transition-colors cursor-pointer hover:border-blue-500/50 group"
+              >
+                <CardHeader className="pb-2">
+                  <Users className="h-5 w-5 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+                  <CardTitle className="text-lg">Directorio</CardTitle>
+                  <CardDescription>Ver lista total de empleados</CardDescription>
+                </CardHeader>
+              </Card>
+            </DialogTrigger>
+            
+            {/* Contenido de la Ventana Modal */}
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Directorio de Personal
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                {/* Buscador dentro del Modal */}
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nombre o departamento..."
+                    value={directorySearch}
+                    onChange={(e) => setDirectorySearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+
+                {/* Tabla de Resultados */}
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Empleado</TableHead>
+                        <TableHead>Departamento</TableHead>
+                        <TableHead>Puesto</TableHead>
+                        <TableHead>Fecha Ingreso</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredDirectory.length > 0 ? (
+                        filteredDirectory.map((emp: any) => (
+                          <TableRow key={emp.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                  <User className="h-4 w-4" />
+                                </div>
+                                {emp.full_name}
+                              </div>
+                            </TableCell>
+                            <TableCell>{emp.department || '-'}</TableCell>
+                            <TableCell>{emp.position || '-'}</TableCell>
+                            <TableCell>
+                              {emp.hire_date 
+                                ? new Date(emp.hire_date).toLocaleDateString('es-MX') 
+                                : '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                            No se encontraron empleados.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="text-xs text-muted-foreground text-right">
+                  Mostrando {filteredDirectory.length} registros
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          {/* --- FIN BLOQUE NUEVO --- */}
         </div>
       </div>
     </div>
