@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,6 +27,20 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+// Función para normalizar nombres para comparación inteligente
+const normalizeName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .sort()
+    .join(' ');
+};
+
 export default function InventoryForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,7 +51,7 @@ export default function InventoryForm() {
     queryKey: ['inventory-item', id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('inventory_items')
         .select('*')
         .eq('id', id)
@@ -77,8 +91,47 @@ export default function InventoryForm() {
     }
   }, [item, form]);
 
+  // Función para buscar productos existentes por nombre (comparación inteligente)
+  const findExistingProduct = async (name: string): Promise<any | null> => {
+    try {
+      // Obtener todos los productos
+      const { data: allItems, error } = await supabase
+        .from('inventory_items')
+        .select('*');
+
+      if (error) throw error;
+
+      if (!allItems || allItems.length === 0) return null;
+
+      const normalizedSearchName = normalizeName(name);
+
+      // Buscar coincidencia exacta o similar
+      for (const existingItem of allItems) {
+        const normalizedExistingName = normalizeName(existingItem.name);
+
+        // Comparación exacta después de normalización
+        if (normalizedSearchName === normalizedExistingName) {
+          return existingItem;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error buscando producto existente:', error);
+      return null;
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Si estamos creando, verificar si ya existe un producto con nombre similar
+      if (!isEditing) {
+        const existingProduct = await findExistingProduct(data.name);
+        if (existingProduct) {
+          throw new Error(`"${data.name}" ya existe como "${existingProduct.name}" en categoría ${existingProduct.category}, ubicación ${existingProduct.location || 'no especificada'}. Edite el producto existente para aumentar el stock.`);
+        }
+      }
+
       const payload = {
         ...data,
         description: data.description || null,
@@ -87,13 +140,13 @@ export default function InventoryForm() {
       };
 
       if (isEditing) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('inventory_items')
           .update(payload)
           .eq('id', id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('inventory_items')
           .insert(payload);
         if (error) throw error;
@@ -144,14 +197,14 @@ export default function InventoryForm() {
                       <Input
                         placeholder="Nombre del artículo"
                         {...field}
-                        onChange={(e) => {
-                          if (/^[a-zA-Z\u00C0-\u00FF\s]*$/.test(e.target.value)) {
-                            field.onChange(e.target.value);
-                          }
-                        }}
                       />
                     </FormControl>
                     <FormMessage />
+                    {!isEditing && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Nota: Si el producto ya existe, se le notificará y no podrá crearlo nuevamente.
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />
@@ -310,7 +363,11 @@ export default function InventoryForm() {
                 <Button type="submit" disabled={mutation.isPending}>
                   {mutation.isPending ? 'Guardando...' : 'Guardar'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => navigate('/inventario')}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/seguridad-higiene/inventario')}
+                >
                   Cancelar
                 </Button>
               </div>
