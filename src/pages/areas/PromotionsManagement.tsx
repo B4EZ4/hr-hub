@@ -87,7 +87,7 @@ export const PromotionsManagement = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-                    placeholder="Buscar por nombre..."
+        .select('user_id, full_name, position, department, area_id, areas(name)')
         .order('full_name');
       if (error) throw error;
       return (data || []).map((item) => ({
