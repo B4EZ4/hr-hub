@@ -39,6 +39,15 @@ export const AreasManagement = () => {
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
 
+  const sanitizeTextInput = (value: string) => {
+    const lettersOnly = value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+    const withoutLeadingSpaces = lettersOnly.replace(/^\s+/, '');
+    if (!withoutLeadingSpaces) return '';
+    return withoutLeadingSpaces.charAt(0).toUpperCase() + withoutLeadingSpaces.slice(1);
+  };
+
+  const normalizeName = (value: string) => value.trim().toLowerCase();
+
   const { data: areas = [], isLoading } = useQuery({
     queryKey: ['areas'],
     queryFn: async () => {
@@ -51,6 +60,14 @@ export const AreasManagement = () => {
       return data;
     },
   });
+
+  const isDuplicateName =
+    formData.name.trim().length > 0 &&
+    areas.some(
+      (area) =>
+        area.id !== editingArea?.id &&
+        normalizeName(area.name) === normalizeName(formData.name)
+    );
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -108,8 +125,8 @@ export const AreasManagement = () => {
   const handleEdit = (area: Area) => {
     setEditingArea(area);
     setFormData({
-      name: area.name,
-      description: area.description || '',
+      name: sanitizeTextInput(area.name),
+      description: area.description ? sanitizeTextInput(area.description) : '',
       status: area.status,
     });
     setDialogOpen(true);
@@ -117,6 +134,10 @@ export const AreasManagement = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDuplicateName) {
+      toast.error('Ya existe un área con ese nombre');
+      return;
+    }
     if (editingArea) {
       updateMutation.mutate({ id: editingArea.id, data: formData });
     } else {
@@ -200,16 +221,19 @@ export const AreasManagement = () => {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, name: sanitizeTextInput(e.target.value) })}
                     required
                   />
+                  {isDuplicateName && (
+                    <p className="mt-1 text-sm text-destructive">Ya existe un área con ese nombre.</p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="description">Descripción</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, description: sanitizeTextInput(e.target.value) })}
                     rows={3}
                   />
                 </div>
@@ -229,7 +253,7 @@ export const AreasManagement = () => {
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={isDuplicateName}>
                     {editingArea ? 'Actualizar' : 'Crear'}
                   </Button>
                 </div>

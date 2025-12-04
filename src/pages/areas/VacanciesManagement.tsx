@@ -56,6 +56,15 @@ export const VacanciesManagement = () => {
   const queryClient = useQueryClient();
   const { canManageUsers } = useRoles();
 
+  const sanitizeTextInput = (value: string) => {
+    const lettersOnly = value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+    const withoutLeadingSpaces = lettersOnly.replace(/^\s+/, '');
+    if (!withoutLeadingSpaces) return '';
+    return withoutLeadingSpaces.charAt(0).toUpperCase() + withoutLeadingSpaces.slice(1);
+  };
+
+  const normalizeTitle = (value: string) => value.trim().toLowerCase();
+
   const { data: vacancies = [], isLoading } = useQuery({
     queryKey: ['recruitment-positions-vacancies'],
     queryFn: async () => {
@@ -68,6 +77,14 @@ export const VacanciesManagement = () => {
       return data;
     },
   });
+
+  const isDuplicateTitle =
+    formData.title.trim().length > 0 &&
+    vacancies.some(
+      (vacancy) =>
+        vacancy.id !== editingVacancy?.id &&
+        normalizeTitle(vacancy.title) === normalizeTitle(formData.title)
+    );
 
   const { data: areas = [] } = useQuery({
     queryKey: ['areas-list'],
@@ -85,14 +102,21 @@ export const VacanciesManagement = () => {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      const sanitizedPayload = {
+        ...data,
+        title: sanitizeTextInput(data.title),
+        location: data.location ? sanitizeTextInput(data.location) : '',
+        description: data.description ? sanitizeTextInput(data.description) : '',
+      };
+
       if (editingVacancy) {
         const { error } = await supabase
           .from('recruitment_positions')
-          .update(data)
+          .update(sanitizedPayload)
           .eq('id', editingVacancy.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('recruitment_positions').insert(data);
+        const { error } = await supabase.from('recruitment_positions').insert(sanitizedPayload);
         if (error) throw error;
       }
     },
@@ -161,6 +185,10 @@ export const VacanciesManagement = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDuplicateTitle) {
+      toast.error('Ya existe una vacante con ese título');
+      return;
+    }
     createMutation.mutate(formData);
   };
 
@@ -182,11 +210,11 @@ export const VacanciesManagement = () => {
   const openEditDialog = (vacancy: Vacancy) => {
     setEditingVacancy(vacancy);
     setFormData({
-      title: vacancy.title,
-      description: vacancy.description || '',
+      title: vacancy.title ? sanitizeTextInput(vacancy.title) : '',
+      description: vacancy.description ? sanitizeTextInput(vacancy.description) : '',
       status: vacancy.status,
       department: vacancy.department || '',
-      location: vacancy.location || '',
+      location: vacancy.location ? sanitizeTextInput(vacancy.location) : '',
       work_start_time: vacancy.work_start_time || '08:00',
       work_end_time: vacancy.work_end_time || '16:00',
       seniority: vacancy.seniority || 'junior',
@@ -286,10 +314,13 @@ export const VacanciesManagement = () => {
                   <Input
                     id="title"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, title: sanitizeTextInput(e.target.value) })}
                     placeholder="Desarrollador Junior"
                     required
                   />
+                  {isDuplicateTitle && (
+                    <p className="mt-1 text-sm text-destructive">Ya existe una vacante con ese nombre.</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -310,7 +341,7 @@ export const VacanciesManagement = () => {
                     <Input
                       id="location"
                       value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, location: sanitizeTextInput(e.target.value) })}
                       placeholder="Morelos"
                     />
                   </div>
@@ -370,7 +401,7 @@ export const VacanciesManagement = () => {
                   <Textarea
                     id="description"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, description: sanitizeTextInput(e.target.value) })}
                     placeholder="Desarrollador Junior"
                     rows={3}
                   />
@@ -379,7 +410,9 @@ export const VacanciesManagement = () => {
                   <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                     Cancelar
                   </Button>
-                  <Button type="submit">{editingVacancy ? 'Actualizar Vacante' : 'Crear Vacante'}</Button>
+                  <Button type="submit" disabled={isDuplicateTitle || createMutation.isPending}>
+                    {editingVacancy ? 'Actualizar Vacante' : 'Crear Vacante'}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
