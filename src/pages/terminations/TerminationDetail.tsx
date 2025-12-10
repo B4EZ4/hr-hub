@@ -153,6 +153,27 @@ export default function TerminationDetail() {
     },
   });
 
+  const handleFileSelected = async (file: globalThis.File | null) => {
+    if (!file) return;
+    try {
+      const fileName = `${Date.now()}_${file.name}`;
+      const storagePath = `${termination.employee_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('despidos')
+        .upload(storagePath, file, { upsert: false });
+
+      if (uploadError) {
+        toast.error(uploadError.message || 'Error al subir el archivo');
+        return;
+      }
+
+      uploadMutation.mutate(storagePath);
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al procesar el archivo');
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-96">Cargando...</div>;
   }
@@ -161,6 +182,8 @@ export default function TerminationDetail() {
     return <div className="text-center py-8">No se encontró el despido</div>;
   }
 
+  const isEditable = termination.estado === 'pendiente';
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -168,7 +191,17 @@ export default function TerminationDetail() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Volver
         </Button>
-        <Button onClick={() => navigate(`/despidos/${id}/editar`)}>
+        <Button
+          onClick={() => {
+            if (!isEditable) {
+              toast.error('Solo se puede editar despidos en estado pendiente');
+              return;
+            }
+            navigate(`/despidos/${id}/editar`);
+          }}
+          variant={isEditable ? 'default' : 'outline'}
+          title={isEditable ? undefined : 'Solo editable en estado pendiente'}
+        >
           <Edit className="mr-2 h-4 w-4" />
           Editar
         </Button>
@@ -267,7 +300,7 @@ export default function TerminationDetail() {
           <FileUploader
             bucket="despidos"
             path={`${termination.employee_id}`}
-            onUploadComplete={(path) => uploadMutation.mutate(path)}
+            onFileSelected={handleFileSelected}
             maxSize={10}
           />
 

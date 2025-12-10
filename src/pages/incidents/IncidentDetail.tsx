@@ -24,8 +24,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, AlertTriangle, MapPin, Calendar, User } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, MapPin, Calendar, User, Download } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function IncidentDetail() {
   const { id } = useParams();
@@ -38,6 +39,8 @@ export default function IncidentDetail() {
   const [editStatus, setEditStatus] = useState('');
   const [editSeverity, setEditSeverity] = useState('');
   const [saving, setSaving] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incident', id],
@@ -92,14 +95,18 @@ export default function IncidentDetail() {
   };
 
   const typeMap: Record<string, string> = {
-    accidente: 'Accidente',
-    incidente: 'Incidente',
-    casi_accidente: 'Casi Accidente',
-    condicion_insegura: 'Condición Insegura',
+    falta_injustificada: 'Falta injustificada',
+    falta_justificada: 'Falta justificada',
+    permiso_laboral: 'Permiso laboral',
+    accidente_laboral: 'Accidente laboral',
+    despido: 'Despido',
+    problema_de_conducta: 'Problema de conducta',
+    otro: 'Otro',
   };
 
   const status = statusMap[incident.status] || { label: incident.status, variant: 'default' };
   const severity = severityMap[incident.severity] || { label: incident.severity, variant: 'default' };
+  const isRetraso = (incident.incident_type || '').toLowerCase() === 'retraso';
 
   return (
     <div className="space-y-6">
@@ -116,20 +123,22 @@ export default function IncidentDetail() {
         <div className="flex items-center gap-2">
           <Badge variant={severity.variant}>{severity.label}</Badge>
           <Badge variant={status.variant}>{status.label}</Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Initialize edit form from current incident and open modal
-              setEditTitle(incident.title || '');
-              setEditDescription(incident.description || '');
-              setEditStatus(incident.status || 'abierto');
-              setEditSeverity(incident.severity || 'baja');
-              setIsEditOpen(true);
-            }}
-          >
-            Editar
-          </Button>
+          {!isRetraso && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Initialize edit form from current incident and open modal
+                setEditTitle(incident.title || '');
+                setEditDescription(incident.description || '');
+                setEditStatus(incident.status || 'abierto');
+                setEditSeverity(incident.severity || 'baja');
+                setIsEditOpen(true);
+              }}
+            >
+              Editar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -229,8 +238,40 @@ export default function IncidentDetail() {
             <CardContent>
               <div className="grid gap-2 md:grid-cols-3">
                 {incident.file_paths.map((path: string, idx: number) => (
-                  <div key={idx} className="border rounded p-2">
-                    <p className="text-sm truncate">{path.split('/').pop()}</p>
+                  <div key={idx} className="border rounded p-2 flex items-center justify-between">
+                    <p className="text-sm truncate mr-2">{path.split('/').pop()}</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const { data } = supabase.storage.from('documents').getPublicUrl(path);
+                            const publicUrl = (data as any)?.publicUrl;
+                            if (publicUrl) {
+                              window.open(publicUrl, '_blank');
+                              return;
+                            }
+
+                            const { data: signedData, error: signedError } = await supabase.storage
+                              .from('documents')
+                              .createSignedUrl(path, 60);
+                            if (signedError) throw signedError;
+                            if (signedData?.signedUrl) {
+                              window.open(signedData.signedUrl, '_blank');
+                              return;
+                            }
+
+                            toast.error('No se pudo obtener la URL del archivo');
+                          } catch (err: any) {
+                            console.error('Error opening file', err);
+                            toast.error(err?.message || 'Error al abrir el archivo');
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -318,6 +359,82 @@ export default function IncidentDetail() {
               }}
             >
               {saving ? 'Guardando...' : 'Guardar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <div className="flex justify-end">
+        <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+          Eliminar incidencia
+        </Button>
+      </div>
+
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar incidencia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará la incidencia permanentemente. ¿Estás seguro?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                  try {
+                    setDeleting(true);
+
+                    // Guardar file_paths antes de borrar la incidencia
+                    const filePaths: string[] = Array.isArray(incident.file_paths) ? incident.file_paths : [];
+
+                    // Eliminar la incidencia primero
+                    const { error: delErr } = await (supabase as any).from('incidents').delete().eq('id', id);
+                    if (delErr) throw delErr;
+
+                    // Intentar eliminar filas relacionadas en la tabla `documents` (si existen paths)
+                    if (filePaths.length > 0) {
+                      try {
+                        const { error: docsErr } = await (supabase as any)
+                          .from('documents')
+                          .delete()
+                          .in('file_path', filePaths);
+
+                        if (docsErr) {
+                          console.error('Error deleting documents rows', docsErr);
+                          toast.error('Incidencia eliminada, pero no se pudieron borrar los registros en documents');
+                        } else {
+                          // Intentar eliminar archivos del bucket (no fatal)
+                          try {
+                            const { error: storageErr } = await supabase.storage.from('documents').remove(filePaths);
+                            if (storageErr) {
+                              console.warn('Storage remove error', storageErr);
+                              toast.error('Incidencia eliminada (E))');
+                            }
+                          } catch (se) {
+                            console.warn('Error removing files from storage', se);
+                          }
+                        }
+                      } catch (eDocs) {
+                        console.error('Error while deleting documents rows', eDocs);
+                        toast.error('Error al eliminar registros de documentos relacionados');
+                      }
+                    }
+
+                    await queryClient.invalidateQueries({ queryKey: ['incidents'] });
+                    await queryClient.invalidateQueries({ queryKey: ['incident', id] });
+                    setIsDeleteOpen(false);
+                    toast.success('Incidencia eliminada');
+                    setTimeout(() => navigate('/incidencias'), 250);
+                  } catch (e: any) {
+                    console.error('Error deleting incident', e);
+                    toast.error(e?.message || 'Error al eliminar incidencia');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+            >
+              {deleting ? 'Eliminando...' : 'Eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

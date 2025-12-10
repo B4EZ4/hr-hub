@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, Edit, Trash2, Eye, Check, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Check, X, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -52,6 +52,11 @@ export default function TerminationsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [statusChange, setStatusChange] = useState<{
+    id: string | null;
+    newStatus: string | null;
+    employeeId?: string | null;
+  }>({ id: null, newStatus: null, employeeId: null });
 
   const { data: terminationsData, isLoading } = useQuery({
     // Exclude `searchTerm` from the key so typing doesn't trigger refetches
@@ -172,6 +177,10 @@ export default function TerminationsList() {
           <Button variant="outline" onClick={() => navigate('/despidos/dashboard')}>
             Dashboard
           </Button>
+          <Button variant="secondary" onClick={() => navigate('/incidencias')}>
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Incidencias
+          </Button>
           <Button onClick={() => navigate('/despidos/nuevo')}>
           <Plus className="mr-2 h-4 w-4" />
           Nuevo Despido
@@ -229,27 +238,26 @@ export default function TerminationsList() {
                 <Button variant="ghost" size="sm" onClick={() => navigate(`/despidos/${row.id}/editar`)}>
                   <Edit className="h-4 w-4" />
                 </Button>
-                {/* Botón: marcar completado */}
-                {row.estado !== 'completado' && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => updateTerminationStatus(row.id, 'completado', row.employee_id)}
-                    disabled={updatingId === row.id}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                )}
-                {/* Botón: marcar cancelado */}
-                {row.estado !== 'cancelado' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => updateTerminationStatus(row.id, 'cancelado', row.employee_id)}
-                    disabled={updatingId === row.id}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                {/* Sólo permitir cambio de estado si el despido está en 'pendiente' o 'en_proceso' */}
+                {(row.estado === 'pendiente' || row.estado === 'en_proceso') && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => setStatusChange({ id: row.id, newStatus: 'completado', employeeId: row.employee_id })}
+                      disabled={updatingId === row.id}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStatusChange({ id: row.id, newStatus: 'cancelado', employeeId: row.employee_id })}
+                      disabled={updatingId === row.id}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.id)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -298,6 +306,32 @@ export default function TerminationsList() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Confirmación para cambio de estado (solo una vez) */}
+      <AlertDialog open={!!statusChange.id} onOpenChange={() => setStatusChange({ id: null, newStatus: null, employeeId: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar cambio de estado</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cambiar el estado del despido a <strong>{statusChange.newStatus}</strong> finalizará el proceso, esto es irreversible.
+              ¿Deseas continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setStatusChange({ id: null, newStatus: null, employeeId: null })}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground"
+              onClick={async () => {
+                if (!statusChange.id || !statusChange.newStatus) return;
+                // Ejecutar la actualización y luego cerrar
+                await updateTerminationStatus(statusChange.id, statusChange.newStatus, statusChange.employeeId || undefined);
+                setStatusChange({ id: null, newStatus: null, employeeId: null });
+              }}
+            >
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

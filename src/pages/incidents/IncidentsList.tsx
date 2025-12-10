@@ -143,6 +143,7 @@ export default function IncidentsList() {
           permiso_laboral: 'Permiso laboral',
           accidente_laboral: 'Accidente laboral',
           despido: 'Despido',
+          retraso: 'Retraso',
         };
         return types[value] || value;
       },
@@ -192,7 +193,7 @@ export default function IncidentsList() {
             <BarChart3 className="mr-2 h-4 w-4" />
             Dashboard
           </Button>
-          <Button variant="outline" onClick={() => navigate('/despidos')}>
+          <Button variant="destructive" onClick={() => navigate('/despidos')}>
             Despidos
           </Button>
           <Button onClick={() => navigate('/incidencias/new')}>
@@ -217,7 +218,6 @@ export default function IncidentsList() {
             <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="abierto">Abierto</SelectItem>
               <SelectItem value="en_progreso">En Progreso</SelectItem>
-            <SelectItem value="resuelto">Resuelto</SelectItem>
             <SelectItem value="cerrado">Cerrado</SelectItem>
           </SelectContent>
         </Select>
@@ -245,30 +245,34 @@ export default function IncidentsList() {
                 <Button variant="ghost" size="sm" onClick={() => navigate(`/incidencias/${row.id}`)}>
                   <Eye className="h-4 w-4" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={row.status === 'abierto' ? 'default' : 'outline'}
-                  onClick={() => updateStatus(row.id, 'abierto')}
-                  disabled={updatingId === row.id}
-                >
-                  Abierto
-                </Button>
-                <Button
-                  size="sm"
-                  variant={row.status === 'en_progreso' ? 'warning' : 'outline'}
-                  onClick={() => updateStatus(row.id, 'en_progreso')}
-                  disabled={updatingId === row.id}
-                >
-                  En Progreso
-                </Button>
-                <Button
-                  size="sm"
-                  variant={row.status === 'cerrado' ? 'destructive' : 'outline'}
-                  onClick={() => updateStatus(row.id, 'cerrado')}
-                  disabled={updatingId === row.id}
-                >
-                  Finalizar
-                </Button>
+                {((row.incident_type || '').toLowerCase() !== 'retraso') && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant={row.status === 'abierto' ? 'default' : 'outline'}
+                      onClick={() => updateStatus(row.id, 'abierto')}
+                      disabled={updatingId === row.id}
+                    >
+                      Abierto
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={row.status === 'en_progreso' ? 'warning' : 'outline'}
+                      onClick={() => updateStatus(row.id, 'en_progreso')}
+                      disabled={updatingId === row.id}
+                    >
+                      En Progreso
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={row.status === 'cerrado' ? 'destructive' : 'outline'}
+                      onClick={() => updateStatus(row.id, 'cerrado')}
+                      disabled={updatingId === row.id}
+                    >
+                      Finalizado
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           />
