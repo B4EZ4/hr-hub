@@ -33,13 +33,32 @@ export function FileUploader({
     const maxSizeBytes = maxSize * 1024 * 1024;
     if (f.size > maxSizeBytes) return `El archivo excede el tamaño máximo de ${maxSize}MB`;
 
-    const isPdfMime = f.type === 'application/pdf';
-    const nameLower = f.name.toLowerCase();
-    const hasPdfExt = nameLower.endsWith('.pdf');
-    if (!isPdfMime && !hasPdfExt) return 'Solo se permiten archivos PDF (.pdf)';
+    if (accept && accept !== '*') {
+      const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+      const fileType = f.type.toLowerCase();
+      const fileName = f.name.toLowerCase();
+
+      const isValid = acceptedTypes.some(type => {
+        if (type.endsWith('/*')) {
+          const prefix = type.replace('/*', '');
+          return fileType.startsWith(prefix);
+        }
+        if (type.startsWith('.')) {
+          return fileName.endsWith(type);
+        }
+        return fileType === type;
+      });
+
+      if (!isValid) {
+        if ((accept.includes('.pdf') || accept.includes('application/pdf')) && !accept.includes('image')) {
+          return 'Solo se permiten archivos PDF (.pdf)';
+        }
+        return 'Tipo de archivo no permitido';
+      }
+    }
 
     return null;
-  }, [maxSize]);
+  }, [maxSize, accept]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -109,8 +128,12 @@ export function FileUploader({
 
         {!file ? (
           <div className="flex flex-col items-center justify-center text-center p-6">
-              <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
-              <p className="text-sm font-medium mb-1">Arrastra un PDF (.pdf) aquí o haz clic para seleccionar</p>
+            <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
+            <p className="text-sm font-medium mb-1">
+              {(accept === '.pdf' || accept === 'application/pdf')
+                ? 'Arrastra un PDF (.pdf) aquí o haz clic para seleccionar'
+                : 'Arrastra tus archivos aquí o haz clic para seleccionar'}
+            </p>
             <p className="text-xs text-muted-foreground">Tamaño máximo: {maxSize}MB</p>
           </div>
         ) : (
